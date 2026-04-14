@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>面接合否ボット</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#f8f7f4;--surface:#ffffff;--border:#e5e3dc;--border2:#d0cec6;
+    --text:#1a1a1a;--text2:#555;--text3:#888;
+    --teal:#1D9E75;--teal-bg:#E1F5EE;--teal-text:#0F6E56;
+    --red:#D84040;--red-bg:#FCEBEB;--red-text:#A32D2D;
+    --amber:#BA7517;--amber-bg:#FAEEDA;--amber-text:#633806;
+    --blue:#185FA5;--blue-bg:#E6F1FB;--blue-text:#0C447C;
+    --radius:10px;--radius-sm:6px;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;line-height:1.6}
+  .screen{display:none;min-height:100vh;padding:1.5rem 1rem}
+  .screen.active{display:block}
+  .container{max-width:680px;margin:0 auto}
+
+  /* ===== TOP ===== */
+  .top-hero{text-align:center;padding:4rem 1rem 2rem}
+  .top-hero h1{font-size:2rem;font-weight:700;margin-bottom:.5rem}
+  .top-hero p{color:var(--text2);font-size:1rem;margin-bottom:2.5rem}
+  .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;max-width:480px;margin:0 auto}
+  .role-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:1.75rem 1.25rem;cursor:pointer;text-align:center;transition:border-color .15s,transform .1s}
+  .role-card:hover{border-color:var(--teal);transform:translateY(-2px)}
+  .role-card .icon{font-size:2rem;margin-bottom:.75rem}
+  .role-card h2{font-size:1rem;font-weight:600;margin-bottom:.35rem}
+  .role-card p{font-size:.8rem;color:var(--text3)}
+
+  /* ===== CARDS ===== */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:.875rem}
+  .card-title{font-size:.7rem;color:var(--text3);letter-spacing:.06em;margin-bottom:.875rem;text-transform:uppercase}
+
+  /* ===== FORM ===== */
+  label{display:block;font-size:.8rem;color:var(--text2);margin-bottom:.3rem;margin-top:.75rem}
+  label:first-child{margin-top:0}
+  input[type=text],select,textarea{width:100%;padding:.6rem .8rem;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:.9rem;font-family:inherit;background:var(--surface);color:var(--text);outline:none}
+  input[type=text]:focus,select:focus,textarea:focus{border-color:var(--teal)}
+  textarea{resize:vertical;min-height:80px}
+
+  /* ===== BUTTONS ===== */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.6rem 1.2rem;border-radius:var(--radius-sm);border:1px solid var(--border2);background:transparent;font-size:.875rem;font-family:inherit;color:var(--text);cursor:pointer;transition:background .12s}
+  .btn:hover{background:var(--bg)}
+  .btn:active{transform:scale(.98)}
+  .btn.primary{background:var(--text);color:#fff;border-color:var(--text)}
+  .btn.primary:hover{opacity:.85}
+  .btn.teal{background:var(--teal);color:#fff;border-color:var(--teal)}
+  .btn.teal:hover{opacity:.85}
+  .btn.danger{color:var(--red-text);border-color:#f0a0a0}
+  .btn.danger:hover{background:var(--red-bg)}
+  .btn.ghost{border-color:transparent;color:var(--text3)}
+  .btn.ghost:hover{color:var(--text);background:var(--bg)}
+  .btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+  .btn-row{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
+  .btn-full{width:100%;padding:.75rem}
+
+  /* ===== BADGES ===== */
+  .badge{display:inline-block;font-size:.7rem;padding:.2rem .6rem;border-radius:20px}
+  .badge.blue{background:var(--blue-bg);color:var(--blue-text)}
+  .badge.teal{background:var(--teal-bg);color:var(--teal-text)}
+  .badge.red{background:var(--red-bg);color:var(--red-text)}
+  .badge.amber{background:var(--amber-bg);color:var(--amber-text)}
+  .badge.gray{background:var(--bg);color:var(--text3);border:1px solid var(--border)}
+
+  /* ===== PROGRESS ===== */
+  .progress-bar{height:3px;background:var(--border);border-radius:2px;margin-bottom:1.5rem;overflow:hidden}
+  .progress-fill{height:100%;background:var(--teal);border-radius:2px;transition:width .3s}
+  .step-dots{display:flex;gap:.4rem;align-items:center}
+  .step-dot{width:7px;height:7px;border-radius:50%;background:var(--border2)}
+  .step-dot.done{background:var(--teal)}
+  .step-dot.active{background:var(--text)}
+
+  /* ===== SCORE BARS ===== */
+  .score-bar-row{display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem}
+  .score-bar-label{font-size:.8rem;color:var(--text2);width:110px;flex-shrink:0}
+  .score-bar-track{flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden}
+  .score-bar-fill{height:100%;border-radius:4px;background:var(--teal);transition:width .4s}
+  .score-bar-num{font-size:.8rem;color:var(--text2);width:36px;text-align:right}
+
+  /* ===== STARS ===== */
+  .star-row{display:flex;gap:.3rem;margin:.3rem 0 .75rem}
+  .star{font-size:1.4rem;cursor:pointer;color:var(--border2);transition:color .1s}
+  .star.active{color:#E9A800}
+
+  /* ===== MISC ===== */
+  .header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem}
+  .meta{font-size:.8rem;color:var(--text3)}
+  .divider{height:1px;background:var(--border);margin:1rem 0}
+  .avatar{width:36px;height:36px;border-radius:50%;background:var(--blue-bg);color:var(--blue-text);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:600;flex-shrink:0}
+  .followup-box{background:var(--amber-bg);border-radius:var(--radius-sm);padding:.875rem;margin-top:.875rem}
+  .followup-box .label{font-size:.7rem;color:var(--amber-text);margin-bottom:.4rem;font-weight:600;letter-spacing:.04em}
+  .followup-q{font-size:.875rem;font-weight:600;color:var(--text);margin-bottom:.5rem;line-height:1.5}
+  .verdict-box{border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;gap:.875rem}
+  .verdict-box.pass{background:var(--teal-bg);border:1px solid #9FE1CB}
+  .verdict-box.fail{background:var(--red-bg);border:1px solid #F7C1C1}
+  .verdict-icon{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;color:#fff;flex-shrink:0}
+  .verdict-box.pass .verdict-icon{background:var(--teal)}
+  .verdict-box.fail .verdict-icon{background:var(--red)}
+  .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-bottom:1.25rem}
+  .stat{background:var(--bg);border-radius:var(--radius-sm);padding:.875rem;text-align:center}
+  .stat-val{font-size:1.5rem;font-weight:600;color:var(--text)}
+  .stat-label{font-size:.7rem;color:var(--text3)}
+  .list-item{display:flex;align-items:center;gap:.75rem;padding:.875rem;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+  .list-item:hover{background:var(--bg)}
+  .list-item:last-child{border-bottom:none}
+  .empty{text-align:center;padding:3rem 1rem;color:var(--text3);font-size:.9rem}
+  .tag-row{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem}
+  .tag{font-size:.75rem;padding:.25rem .6rem;border-radius:20px;background:var(--bg);border:1px solid var(--border);color:var(--text2);cursor:pointer}
+  .tag.on{background:var(--blue-bg);color:var(--blue-text);border-color:#B5D4F4}
+  .notice{background:var(--blue-bg);border-radius:var(--radius-sm);padding:.75rem 1rem;font-size:.8rem;color:var(--blue-text);margin-bottom:1rem}
+</style>
+</head>
+<body>
+
+<!-- ===== TOP ===== -->
+<div id="screen-top" class="screen active">
+  <div class="container">
+    <div class="top-hero">
+      <h1>面接合否ボット</h1>
+      <p>評価を統一して、根拠を残す。</p>
+      <div class="role-grid">
+        <div class="role-card" onclick="goInterviewer()">
+          <div class="icon">🎤</div>
+          <h2>面接官</h2>
+          <p>質問・回答を入力して面接を進める</p>
+        </div>
+        <div class="role-card" onclick="goManager()">
+          <div class="icon">📋</div>
+          <h2>採用担当者</h2>
+          <p>スコアを確認して合否を決定する</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 面接官: 設定 ===== -->
+<div id="screen-setup" class="screen">
+  <div class="container">
+    <div class="header-row">
+      <button class="btn ghost" onclick="show('top')">← 戻る</button>
+      <span class="meta">面接官</span>
+    </div>
+    <div class="card">
+      <div class="card-title">候補者情報</div>
+      <label>候補者名</label>
+      <input type="text" id="setup-name" placeholder="山田 太郎">
+      <label>応募ポジション</label>
+      <input type="text" id="setup-pos" placeholder="エンジニア（バックエンド）">
+      <label>面接の種類</label>
+      <select id="setup-type">
+        <option value="1次面接">1次面接</option>
+        <option value="2次面接">2次面接</option>
+        <option value="最終面接">最終面接</option>
+      </select>
+    </div>
+    <div class="card">
+      <div class="card-title">評価軸を選択・追加</div>
+      <div class="tag-row" id="axis-tags"></div>
+      <div style="display:flex;gap:.5rem;margin-top:.875rem">
+        <input type="text" id="new-axis-input" placeholder="新しい評価軸を入力（例：誠実さ）" style="flex:1" onkeydown="if(event.key==='Enter')addAxis()">
+        <button class="btn" onclick="addAxis()">追加</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">質問テンプレート</div>
+      <div id="q-list"></div>
+      <button class="btn" onclick="addQuestion()" style="margin-top:.5rem">+ 質問を追加</button>
+      <button class="btn teal" onclick="saveTemplateSet()" style="margin-top:.5rem">このリストをテンプレとして保存</button>
+      <div id="template-saved-msg" style="display:none;font-size:.8rem;color:var(--teal-text);margin-top:.4rem">✓ 保存しました</div>
+    </div>
+    <button class="btn teal btn-full" onclick="startInterview()">面接を開始する →</button>
+  </div>
+</div>
+
+<!-- ===== 面接官: 面接実施 ===== -->
+<div id="screen-interview" class="screen">
+  <div class="container">
+    <div class="header-row">
+      <div>
+        <div style="font-weight:600" id="iv-name"></div>
+        <div class="meta" id="iv-pos"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <div class="step-dots" id="iv-dots"></div>
+        <span class="meta" id="iv-prog"></span>
+      </div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="iv-bar"></div></div>
+    <div id="iv-content"></div>
+  </div>
+</div>
+
+<!-- ===== 面接官: 完了 ===== -->
+<div id="screen-done" class="screen">
+  <div class="container">
+    <div style="text-align:center;padding:2rem 0 1.5rem">
+      <div style="font-size:2.5rem;margin-bottom:.75rem">✓</div>
+      <h2 style="font-size:1.25rem;margin-bottom:.4rem">面接完了</h2>
+      <p class="meta">データを保存しました</p>
+    </div>
+    <div class="stat-grid" id="done-stats"></div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:.875rem;font-weight:600;margin-bottom:.4rem">採用担当者に共有する</div>
+      <p class="meta" style="margin-bottom:1rem">面接データをファイルに書き出してSlackやメールで送ってください。</p>
+      <button class="btn teal btn-full" onclick="exportLastSession()">データをダウンロード</button>
+    </div>
+    <button class="btn ghost btn-full" style="margin-top:.5rem" onclick="show('top')">トップに戻る</button>
+  </div>
+</div>
+
+<!-- ===== 採用担当者: 一覧 ===== -->
+<div id="screen-manager" class="screen">
+  <div class="container">
+    <div class="header-row">
+      <button class="btn ghost" onclick="show('top')">← 戻る</button>
+      <span style="font-weight:600">採用担当者</span>
+    </div>
+    <div style="display:flex;gap:.5rem;margin-bottom:1rem">
+      <label class="btn" style="flex:1;justify-content:center;cursor:pointer">
+        データを読み込む
+        <input type="file" accept=".json" onchange="importSessions(event)" style="display:none">
+      </label>
+      <button class="btn" style="flex:1" onclick="exportAllSessions()">全データを書き出す</button>
+    </div>
+    <div class="stat-grid" id="mgr-stats"></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div id="mgr-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 採用担当者: 詳細 ===== -->
+<div id="screen-detail" class="screen">
+  <div class="container">
+    <div class="header-row">
+      <button class="btn ghost" onclick="show('manager');renderManager()">← 一覧</button>
+    </div>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<script>
+// ===== DATA =====
+const AXES = ["技術力","コミュニケーション","論理的思考","リーダーシップ","主体性","成長意欲"];
+const DEFAULT_QUESTIONS = [
+  {axis:"技術力", text:"これまでの開発経験で最も難しかったプロジェクトを教えてください。"},
+  {axis:"コミュニケーション", text:"チームで意見が対立したとき、どのように解決しましたか？"},
+  {axis:"成長意欲", text:"5年後のキャリアビジョンを教えてください。"},
+];
+const FOLLOWUP_BANK = {
+  "技術力":["その解決策を選んだ理由を、他の選択肢と比較して教えてもらえますか？","技術的に一番苦労した点は具体的にどこでしたか？","同じ状況が再び起きたら、次は何を変えますか？"],
+  "コミュニケーション":["反対意見が最も強かった方をどう説得しましたか？","自分の意見が通らなかった場合、どう対応しましたか？","その経験後、チームの関係性に変化はありましたか？"],
+  "論理的思考":["その判断に至るプロセスを順番に教えてもらえますか？","他にどんな選択肢を検討しましたか？","もし前提条件が変わっていたら、判断は変わりましたか？"],
+  "リーダーシップ":["チームをまとめる上で、一番意識していることは何ですか？","メンバーのモチベーションが下がったとき、どう対処しましたか？","自分のリーダーシップスタイルをひとことで表すと？"],
+  "主体性":["その行動を起こすきっかけは何でしたか？","周囲から反対されたとき、どう乗り越えましたか？","誰かに言われる前に動いた具体的な例を教えてください。"],
+  "成長意欲":["そのビジョンに向けて、今具体的に取り組んでいることは？","弊社のどんな点が、そのビジョンに合うと感じていますか？","ここ1年で一番成長できたと感じることは何ですか？"],
+};
+
+let sessions = JSON.parse(localStorage.getItem('iv_sessions') || '[]');
+let currentSession = null;
+let currentQ = 0;
+let allAxes = JSON.parse(localStorage.getItem('iv_axes') || 'null') || [...AXES];
+let selectedAxes = ["技術力","コミュニケーション","成長意欲"];
+let questions = [];
+let savedTemplates = JSON.parse(localStorage.getItem('iv_templates') || 'null');
+let answers = [];
+
+function saveSessions() { localStorage.setItem('iv_sessions', JSON.stringify(sessions)); }
+function saveAxes() { localStorage.setItem('iv_axes', JSON.stringify(allAxes)); }
+function saveTemplates() { localStorage.setItem('iv_templates', JSON.stringify(questions)); }
+
+// ===== EXPORT / IMPORT =====
+function exportLastSession() {
+  if (!sessions.length) return;
+  const s = sessions[0];
+  const blob = new Blob([JSON.stringify(s, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `面接_${s.name}_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+function exportAllSessions() {
+  if (!sessions.length) { alert('データがありません'); return; }
+  const blob = new Blob([JSON.stringify(sessions, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `面接データ一覧_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+function importSessions(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const incoming = Array.isArray(data) ? data : [data];
+      let added = 0;
+      incoming.forEach(s => {
+        if (!sessions.find(x => x.id === s.id)) {
+          sessions.unshift(s);
+          added++;
+        }
+      });
+      saveSessions();
+      renderManager();
+      alert(`${added}件の面接データを読み込みました。`);
+    } catch {
+      alert('ファイルの読み込みに失敗しました。正しいJSONファイルを選択してください。');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ===== NAV =====
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function goInterviewer() {
+  renderSetup();
+  show('setup');
+}
+
+function goManager() {
+  renderManager();
+  show('manager');
+}
+
+// ===== SETUP =====
+function renderSetup() {
+  renderAxisTags();
+  renderQList();
+}
+
+function renderAxisTags() {
+  const tagRow = document.getElementById('axis-tags');
+  tagRow.innerHTML = allAxes.map(a => `
+    <span style="display:inline-flex;align-items:center;gap:3px">
+      <span class="tag ${selectedAxes.includes(a)?'on':''}" onclick="toggleAxis('${a}',this)">${a}</span>
+      ${AXES.includes(a) ? '' : `<span onclick="deleteAxis('${a}')" style="font-size:.7rem;color:var(--text3);cursor:pointer;padding:0 2px" title="削除">✕</span>`}
+    </span>`).join('');
+}
+
+function toggleAxis(a, el) {
+  if (selectedAxes.includes(a)) selectedAxes = selectedAxes.filter(x => x !== a);
+  else selectedAxes.push(a);
+  el.classList.toggle('on');
+}
+
+function addAxis() {
+  const input = document.getElementById('new-axis-input');
+  const val = input.value.trim();
+  if (!val) return;
+  if (allAxes.includes(val)) { input.value=''; return; }
+  allAxes.push(val);
+  selectedAxes.push(val);
+  saveAxes();
+  input.value = '';
+  renderAxisTags();
+  renderQList();
+}
+
+function deleteAxis(a) {
+  if (!confirm(`「${a}」を削除しますか？`)) return;
+  allAxes = allAxes.filter(x => x !== a);
+  selectedAxes = selectedAxes.filter(x => x !== a);
+  questions = questions.map(q => q.axis === a ? {...q, axis: allAxes[0]||''} : q);
+  saveAxes();
+  renderAxisTags();
+  renderQList();
+}
+
+function renderQList() {
+  if (!questions.length) questions = (savedTemplates || DEFAULT_QUESTIONS).map(q => ({...q}));
+  const el = document.getElementById('q-list');
+  el.innerHTML = questions.map((q, i) => `
+    <div class="q-row" draggable="true" data-idx="${i}"
+      style="display:flex;gap:.5rem;margin-bottom:.5rem;align-items:flex-start;cursor:grab;border:1.5px solid transparent;border-radius:var(--radius-sm);padding:2px;transition:border-color .15s"
+      ondragstart="dragStart(event,${i})"
+      ondragover="dragOver(event)"
+      ondrop="dragDrop(event,${i})"
+      ondragend="dragEnd(event)">
+      <div style="display:flex;align-items:center;padding:.4rem .2rem .4rem .2rem;color:var(--text3);cursor:grab;flex-shrink:0;margin-top:1.8rem;font-size:1rem;line-height:1">⠿</div>
+      <div style="flex:1">
+        <select onchange="questions[${i}].axis=this.value" style="margin-bottom:.3rem;font-size:.8rem">
+          ${allAxes.map(a => `<option ${q.axis===a?'selected':''}>${a}</option>`).join('')}
+        </select>
+        <input type="text" value="${q.text}" oninput="questions[${i}].text=this.value" placeholder="質問を入力...">
+      </div>
+      <button class="btn ghost" onclick="questions.splice(${i},1);renderQList()" style="padding:.4rem .6rem;margin-top:1.8rem">✕</button>
+    </div>`).join('');
+  initDrag();
+}
+
+let dragSrcIdx = null;
+
+function initDrag() {
+  document.querySelectorAll('.q-row').forEach(row => {
+    row.addEventListener('dragenter', () => { row.style.borderColor = 'var(--teal)'; });
+    row.addEventListener('dragleave', () => { row.style.borderColor = 'transparent'; });
+  });
+}
+
+function dragStart(e, idx) {
+  dragSrcIdx = idx;
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => { e.target.closest('.q-row').style.opacity = '.4'; }, 0);
+}
+
+function dragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function dragDrop(e, toIdx) {
+  e.preventDefault();
+  if (dragSrcIdx === null || dragSrcIdx === toIdx) return;
+  const moved = questions.splice(dragSrcIdx, 1)[0];
+  questions.splice(toIdx, 0, moved);
+  renderQList();
+}
+
+function dragEnd(e) {
+  e.target.closest('.q-row').style.opacity = '1';
+  document.querySelectorAll('.q-row').forEach(r => r.style.borderColor = 'transparent');
+  dragSrcIdx = null;
+}
+
+function saveTemplateSet() {
+  const validQs = questions.filter(q => q.text.trim());
+  if (!validQs.length) { alert('質問を入力してください'); return; }
+  savedTemplates = validQs.map(q => ({...q}));
+  saveTemplates();
+  const msg = document.getElementById('template-saved-msg');
+  if (msg) { msg.style.display='block'; setTimeout(()=>msg.style.display='none', 2000); }
+}
+
+function addQuestion() {
+  questions.push({axis: selectedAxes[0] || allAxes[0], text:''});
+  renderQList();
+}
+
+function startInterview() {
+  const name = document.getElementById('setup-name').value.trim();
+  const pos = document.getElementById('setup-pos').value.trim();
+  const type = document.getElementById('setup-type').value;
+  if (!name) { alert('候補者名を入力してください'); return; }
+  if (!questions.length) { alert('質問を1つ以上追加してください'); return; }
+  const validQs = questions.filter(q => q.text.trim());
+  if (!validQs.length) { alert('質問文を入力してください'); return; }
+
+  currentSession = { id: Date.now(), name, pos, type, questions: validQs, axes: [...selectedAxes], createdAt: new Date().toISOString(), status:'pending' };
+  currentQ = 0;
+  answers = validQs.map(() => ({ answer:'', score:0, followupQ:'', followupA:'', ownQ:'', ownA:'', skipped:false }));
+  document.getElementById('iv-name').textContent = name;
+  document.getElementById('iv-pos').textContent = pos + ' | ' + type;
+  renderQuestion();
+  show('interview');
+}
+
+// ===== INTERVIEW =====
+function renderQuestion() {
+  const q = currentSession.questions[currentQ];
+  const a = answers[currentQ];
+  const total = currentSession.questions.length;
+  const pct = Math.round((currentQ / total) * 100);
+
+  document.getElementById('iv-bar').style.width = pct + '%';
+  document.getElementById('iv-prog').textContent = (currentQ+1) + ' / ' + total;
+  document.getElementById('iv-dots').innerHTML = currentSession.questions.map((_,i) => {
+    let c = 'step-dot';
+    if (i < currentQ) c += ' done';
+    else if (i === currentQ) c += ' active';
+    return `<div class="${c}"></div>`;
+  }).join('');
+
+  const fqOptions = (FOLLOWUP_BANK[q.axis] || []).map((fq, i) =>
+    `<option value="${fq}">${fq}</option>`).join('');
+
+  document.getElementById('iv-content').innerHTML = `
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.875rem">
+        <span class="meta">質問 ${currentQ+1}</span>
+        <span class="badge blue">${q.axis}</span>
+      </div>
+      <div style="font-size:1rem;font-weight:600;line-height:1.6;margin-bottom:1rem">${q.text}</div>
+
+      <label>回答メモ</label>
+      <textarea id="ans-text" placeholder="候補者の回答をここに入力..." oninput="answers[currentQ].answer=this.value">${a.answer}</textarea>
+
+      ${!a.skipped ? `
+        <div class="followup-box">
+          <div class="label">深掘り質問（任意）</div>
+          <div class="followup-q">提案から選ぶ：</div>
+          <select id="fq-select" onchange="pickFollowup(this.value)" style="margin-bottom:.6rem;font-size:.85rem">
+            <option value="">— 選択してください —</option>
+            ${fqOptions}
+          </select>
+          <div style="font-size:.8rem;color:var(--text3);margin-bottom:.4rem">または自分で入力：</div>
+          <input type="text" id="own-q" placeholder="気になったこと..." value="${a.ownQ}" oninput="answers[currentQ].ownQ=this.value">
+          ${(a.followupQ || a.ownQ) ? `
+            <label style="margin-top:.75rem">深掘りへの回答</label>
+            <textarea id="fq-ans" placeholder="回答を入力..." oninput="answers[currentQ].followupA=this.value">${a.followupA}</textarea>
+          ` : ''}
+        </div>
+      ` : `<div class="badge gray" style="margin-top:.75rem">深掘りスキップ</div>`}
+    </div>
+
+    <div style="margin-top:.5rem">
+      <div id="free-q-area"></div>
+      <button class="btn ghost" style="width:100%;margin-top:.4rem" onclick="showFreeQInput()">＋ 自由質問を追加</button>
+    </div>
+
+    <div class="btn-row">
+      ${currentQ > 0 ? `<button class="btn ghost" onclick="prevQ()">← 前へ</button>` : ''}
+      ${!a.skipped ? `<button class="btn ghost" onclick="skipFollowup()">深掘りをスキップ</button>` : ''}
+      <button class="btn primary" onclick="nextQ()">${currentQ < currentSession.questions.length-1 ? '次の質問 →' : '評価へ進む →'}</button>
+    </div>`;
+}
+
+function pickFollowup(val) {
+  if (!val) return;
+  answers[currentQ].followupQ = val;
+  document.getElementById('own-q').value = '';
+  answers[currentQ].ownQ = '';
+  renderQuestion();
+  setTimeout(() => { document.getElementById('fq-select').value = val; }, 10);
+}
+
+function showFreeQInput() {
+  const area = document.getElementById('free-q-area');
+  if (!area) return;
+  if (area.querySelector('.free-q-input-row')) return;
+  const row = document.createElement('div');
+  row.className = 'free-q-input-row';
+  row.style.cssText = 'display:flex;gap:.5rem;align-items:flex-start;margin-bottom:.5rem';
+  row.innerHTML = `
+    <div style="flex:1">
+      <input type="text" id="free-q-text" placeholder="質問を入力..." style="margin-bottom:.3rem">
+      <textarea id="free-q-ans" placeholder="回答メモ..." style="min-height:52px"></textarea>
+    </div>
+    <button class="btn teal" onclick="addFreeQ()" style="margin-top:0;padding:.5rem .875rem;flex-shrink:0">追加</button>`;
+  area.appendChild(row);
+  document.getElementById('free-q-text').focus();
+}
+
+function addFreeQ() {
+  const qEl = document.getElementById('free-q-text');
+  const aEl = document.getElementById('free-q-ans');
+  if (!qEl || !qEl.value.trim()) return;
+  const freeQ = { q: qEl.value.trim(), a: aEl ? aEl.value : '' };
+  if (!answers[currentQ].freeQs) answers[currentQ].freeQs = [];
+  answers[currentQ].freeQs.push(freeQ);
+  renderFreeQs();
+  const row = document.querySelector('.free-q-input-row');
+  if (row) row.remove();
+}
+
+function removeFreeQ(idx) {
+  if (!answers[currentQ].freeQs) return;
+  answers[currentQ].freeQs.splice(idx, 1);
+  renderFreeQs();
+}
+
+function renderFreeQs() {
+  const area = document.getElementById('free-q-area');
+  if (!area) return;
+  const freeQs = answers[currentQ].freeQs || [];
+  const existing = area.querySelectorAll('.free-q-entry');
+  existing.forEach(e => e.remove());
+  freeQs.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'free-q-entry';
+    div.style.cssText = 'border:1px solid var(--border);border-radius:var(--radius-sm);padding:.75rem;margin-bottom:.5rem';
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem">
+        <span style="font-size:.8rem;font-weight:600;color:var(--text)">${item.q}</span>
+        <button class="btn ghost" onclick="removeFreeQ(${idx})" style="padding:.2rem .5rem;font-size:.75rem">✕</button>
+      </div>
+      <textarea placeholder="回答メモ..." style="min-height:52px" oninput="answers[currentQ].freeQs[${idx}].a=this.value">${item.a}</textarea>`;
+    area.insertBefore(div, area.firstChild);
+  });
+}
+
+function skipFollowup() {
+  answers[currentQ].skipped = true;
+  renderQuestion();
+}
+
+function prevQ() {
+  if (currentQ > 0) { currentQ--; renderQuestion(); }
+}
+
+function nextQ() {
+  const taEl = document.getElementById('ans-text');
+  if (taEl) answers[currentQ].answer = taEl.value;
+  const fqAnsEl = document.getElementById('fq-ans');
+  if (fqAnsEl) answers[currentQ].followupA = fqAnsEl.value;
+  const ownQEl = document.getElementById('own-q');
+  if (ownQEl) answers[currentQ].ownQ = ownQEl.value;
+
+  if (currentQ < currentSession.questions.length - 1) {
+    currentQ++;
+    renderQuestion();
+    window.scrollTo(0,0);
+  } else {
+    renderAxisRating();
+  }
+}
+
+let axisRatingScores = {};
+
+function renderAxisRating() {
+  const axes = currentSession.axes.length ? currentSession.axes : [...new Set(currentSession.questions.map(q=>q.axis))];
+  document.getElementById('iv-content').innerHTML = `
+    <div class="card">
+      <div style="font-size:1rem;font-weight:600;margin-bottom:.25rem">評価軸ごとに点数をつけてください</div>
+      <div class="meta" style="margin-bottom:1.25rem">面接全体を通じた印象で評価してください（1〜5）</div>
+      ${axes.map(axis => `
+        <div style="margin-bottom:1.25rem">
+          <div style="font-size:.875rem;font-weight:600;color:var(--text);margin-bottom:.4rem">${axis}</div>
+          <div class="star-row" id="stars-${axis}">
+            ${[1,2,3,4,5].map(n=>`<span class="star ${(axisRatingScores[axis]||0)>=n?'active':''}" onclick="setAxisScore('${axis}',${n})">★</span>`).join('')}
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="btn-row">
+      <button class="btn ghost" onclick="currentQ=currentSession.questions.length-1;renderQuestion()">← 前へ</button>
+      <button class="btn primary" onclick="finishInterview()">面接を完了</button>
+    </div>`;
+  window.scrollTo(0,0);
+}
+
+function setAxisScore(axis, n) {
+  axisRatingScores[axis] = n;
+  document.querySelectorAll(`#stars-${CSS.escape(axis)} .star`).forEach((s,i)=>s.classList.toggle('active',i<n));
+}
+
+function finishInterview() {
+  const axisScores = {};
+  Object.keys(axisRatingScores).forEach(k => {
+    axisScores[k] = axisRatingScores[k] * 20;
+  });
+  const vals = Object.values(axisRatingScores);
+  const avg = vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : 0;
+
+  currentSession.answers = answers;
+  currentSession.axisScores = axisScores;
+  currentSession.avgScore = Math.round(avg * 20);
+  currentSession.status = 'pending';
+  currentSession.completedAt = new Date().toISOString();
+  sessions.unshift(currentSession);
+  saveSessions();
+
+  const deepCount = answers.filter(a => (a.followupQ||a.ownQ) && !a.skipped).length;
+  document.getElementById('done-stats').innerHTML = `
+    <div class="stat"><div class="stat-val">${answers.filter(a=>a.answer.trim()).length}</div><div class="stat-label">回答した質問</div></div>
+    <div class="stat"><div class="stat-val">${deepCount}</div><div class="stat-label">深掘り実施</div></div>
+    <div class="stat"><div class="stat-val">${currentSession.avgScore}</div><div class="stat-label">平均スコア</div></div>`;
+  show('done');
+}
+
+// ===== MANAGER =====
+function renderManager() {
+  sessions = JSON.parse(localStorage.getItem('iv_sessions') || '[]');
+  const total = sessions.length;
+  const passed = sessions.filter(s=>s.verdict==='pass').length;
+  const failed = sessions.filter(s=>s.verdict==='fail').length;
+  const pending = sessions.filter(s=>s.status==='pending').length;
+
+  document.getElementById('mgr-stats').innerHTML = `
+    <div class="stat"><div class="stat-val">${total}</div><div class="stat-label">面接済み</div></div>
+    <div class="stat"><div class="stat-val">${passed}</div><div class="stat-label">合格</div></div>
+    <div class="stat"><div class="stat-val">${pending}</div><div class="stat-label">判定待ち</div></div>`;
+
+  const list = document.getElementById('mgr-list');
+  if (!sessions.length) {
+    list.innerHTML = '<div class="empty">まだ面接データがありません</div>';
+    return;
+  }
+  list.innerHTML = sessions.map((s,i) => `
+    <div class="list-item" onclick="openDetail(${i})">
+      <div class="avatar">${s.name.charAt(0)}</div>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:.9rem">${s.name}</div>
+        <div class="meta">${s.pos} | ${s.type}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:1rem;font-weight:600">${s.avgScore}<span style="font-size:.7rem;color:var(--text3)">/100</span></div>
+        <span class="badge ${s.verdict==='pass'?'teal':s.verdict==='fail'?'red':'gray'}">${s.verdict==='pass'?'合格':s.verdict==='fail'?'不合格':'判定待'}</span>
+      </div>
+    </div>`).join('');
+}
+
+function openDetail(idx) {
+  const s = sessions[idx];
+  const axisRows = Object.entries(s.axisScores||{}).map(([k,v]) => `
+    <div class="score-bar-row">
+      <div class="score-bar-label">${k}</div>
+      <div class="score-bar-track"><div class="score-bar-fill" style="width:${v}%"></div></div>
+      <div class="score-bar-num">${v}</div>
+    </div>`).join('');
+
+  const qaRows = (s.answers||[]).map((a,i) => `
+    <div style="padding:.875rem 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;gap:.5rem;margin-bottom:.4rem">
+        <span class="meta">Q${i+1}</span>
+        <span class="badge blue">${s.questions[i]?.axis||''}</span>
+      </div>
+      <div style="font-size:.875rem;font-weight:600;margin-bottom:.4rem;line-height:1.5">${s.questions[i]?.text||''}</div>
+      <div style="font-size:.875rem;color:var(--text2);line-height:1.6">${a.answer || '（回答なし）'}</div>
+      ${(a.followupQ||a.ownQ) ? `
+        <div style="margin-top:.6rem;padding:.6rem .8rem;background:var(--amber-bg);border-radius:var(--radius-sm)">
+          <div style="font-size:.7rem;color:var(--amber-text);font-weight:600;margin-bottom:.25rem">深掘り</div>
+          <div style="font-size:.8rem;font-weight:600;margin-bottom:.25rem">${a.followupQ||a.ownQ}</div>
+          <div style="font-size:.8rem;color:var(--text2)">${a.followupA||'（回答なし）'}</div>
+        </div>` : ''}
+      ${(a.freeQs||[]).map(fq=>`
+        <div style="margin-top:.5rem;padding:.6rem .8rem;background:var(--teal-bg);border-radius:var(--radius-sm)">
+          <div style="font-size:.7rem;color:var(--teal-text);font-weight:600;margin-bottom:.25rem">自由質問</div>
+          <div style="font-size:.8rem;font-weight:600;margin-bottom:.25rem">${fq.q}</div>
+          <div style="font-size:.8rem;color:var(--text2)">${fq.a||'（回答なし）'}</div>
+        </div>`).join('')}
+    </div>`).join('');
+
+  const isDone = s.verdict === 'pass' || s.verdict === 'fail';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem">
+      <div class="avatar" style="width:44px;height:44px;font-size:1rem">${s.name.charAt(0)}</div>
+      <div>
+        <div style="font-size:1.1rem;font-weight:700">${s.name}</div>
+        <div class="meta">${s.pos} | ${s.type}</div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div style="font-size:1.5rem;font-weight:700">${s.avgScore}<span style="font-size:.75rem;color:var(--text3)">/100</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">評価軸スコア</div>
+      ${axisRows}
+    </div>
+
+    <div class="card">
+      <div class="card-title">面接ログ</div>
+      ${qaRows}
+    </div>
+
+    <div class="card">
+      <div class="card-title">合否判定</div>
+      ${isDone ? `
+        <div class="verdict-box ${s.verdict}">
+          <div class="verdict-icon">${s.verdict==='pass'?'✓':'✕'}</div>
+          <div>
+            <div style="font-weight:600;color:${s.verdict==='pass'?'var(--teal-text)':'var(--red-text)'}">${s.verdict==='pass'?'合格':'不合格'}</div>
+            <div style="font-size:.8rem;color:var(--text2);margin-top:.2rem">${s.comment||''}</div>
+          </div>
+        </div>
+        <button class="btn ghost" style="font-size:.8rem" onclick="resetVerdict(${idx})">判定をリセット</button>
+      ` : `
+        <textarea id="verdict-comment" placeholder="スコアと面接ログをもとにコメントを記入..." style="margin-bottom:.75rem">${s.comment||''}</textarea>
+        <div class="btn-row">
+          <button class="btn danger" onclick="decide(${idx},'fail')">不合格で確定</button>
+          <button class="btn teal" onclick="decide(${idx},'pass')">合格で確定</button>
+        </div>
+      `}
+    </div>`;
+
+  show('detail');
+}
+
+function decide(idx, result) {
+  const comment = document.getElementById('verdict-comment')?.value || '';
+  sessions[idx].verdict = result;
+  sessions[idx].comment = comment;
+  sessions[idx].status = 'decided';
+  sessions[idx].decidedAt = new Date().toISOString();
+  saveSessions();
+  openDetail(idx);
+}
+
+function resetVerdict(idx) {
+  sessions[idx].verdict = null;
+  sessions[idx].status = 'pending';
+  saveSessions();
+  openDetail(idx);
+}
+</script>
+</body>
+</html>
