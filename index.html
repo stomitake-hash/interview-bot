@@ -259,9 +259,16 @@
 <script>
 const AXES=["技術力","コミュニケーション","論理的思考","リーダーシップ","主体性","成長意欲"];
 const DEFAULT_TEMPLATES={
-  "1次面接":[{axis:"技術力",text:"これまでの経験で最も難しかった仕事を教えてください。"},{axis:"コミュニケーション",text:"チームで意見が対立したとき、どのように解決しましたか？"},{axis:"成長意欲",text:"なぜ転職（就職）を考えたのですか？"}],
-  "2次面接":[{axis:"論理的思考",text:"前回の面接でお話しいただいた経験について、もう少し詳しく聞かせてください。"},{axis:"リーダーシップ",text:"チームをまとめた経験はありますか？具体的に教えてください。"},{axis:"主体性",text:"自分から率先して動いた具体的な経験を教えてください。"}],
-  "最終面接":[{axis:"成長意欲",text:"5年後のキャリアビジョンを教えてください。"},{axis:"コミュニケーション",text:"弊社のどんな点に魅力を感じていますか？"},{axis:"技術力",text:"入社後にどんな貢献ができると思いますか？"}]
+  "中途": {
+    "1次面接":[{axis:"技術力",text:"これまでの経験で最も難しかった仕事を教えてください。"},{axis:"コミュニケーション",text:"チームで意見が対立したとき、どのように解決しましたか？"},{axis:"成長意欲",text:"なぜ転職を考えたのですか？"}],
+    "2次面接":[{axis:"論理的思考",text:"前回の面接でお話しいただいた経験について、もう少し詳しく聞かせてください。"},{axis:"リーダーシップ",text:"チームをまとめた経験はありますか？具体的に教えてください。"},{axis:"主体性",text:"自分から率先して動いた具体的な経験を教えてください。"}],
+    "最終面接":[{axis:"成長意欲",text:"5年後のキャリアビジョンを教えてください。"},{axis:"コミュニケーション",text:"弊社のどんな点に魅力を感じていますか？"},{axis:"技術力",text:"入社後にどんな貢献ができると思いますか？"}]
+  },
+  "新卒": {
+    "1次面接":[{axis:"主体性",text:"学生時代に最も力を入れて取り組んだことを教えてください。"},{axis:"コミュニケーション",text:"チームで何かを成し遂げた経験を教えてください。"},{axis:"成長意欲",text:"なぜ弊社を志望しましたか？"}],
+    "2次面接":[{axis:"論理的思考",text:"前回お話しいただいた経験で、困難をどう乗り越えましたか？"},{axis:"主体性",text:"自分から提案・行動したエピソードを教えてください。"},{axis:"成長意欲",text:"入社後にどんなことに挑戦したいですか？"}],
+    "最終面接":[{axis:"成長意欲",text:"10年後のキャリアビジョンを教えてください。"},{axis:"コミュニケーション",text:"弊社のどんな点に魅力を感じていますか？"},{axis:"主体性",text:"学生時代の経験をどう仕事に活かせると思いますか？"}]
+  }
 };
 const FOLLOWUP_BANK={
   "技術力":["その解決策を選んだ理由を、他の選択肢と比較して教えてもらえますか？","技術的に一番苦労した点は具体的にどこでしたか？","同じ状況が再び起きたら、次は何を変えますか？"],
@@ -277,6 +284,10 @@ let currentSession=null,currentQ=0,axisRatingScores={},prevSession=null;
 let allAxes=JSON.parse(localStorage.getItem('iv_axes')||'null')||[...AXES];
 let selectedAxes=JSON.parse(localStorage.getItem('iv_selected_axes')||'null')||["技術力","コミュニケーション","成長意欲"];
 let stageTemplates=JSON.parse(localStorage.getItem('iv_stage_templates')||'null')||JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+// 旧形式（カテゴリなし）を新形式に移行
+if(stageTemplates&&!stageTemplates['中途']&&!stageTemplates['新卒']){
+  stageTemplates={中途:{...stageTemplates},新卒:JSON.parse(JSON.stringify(DEFAULT_TEMPLATES['新卒']))};
+}
 let currentEditStage="1次面接";
 let questions=[],answers=[];
 
@@ -483,10 +494,23 @@ function checkHistory(name){
   }else{prevSession=null;hint.style.display='none';}
 }
 
+function onStageChange(){
+  const stage=document.getElementById('setup-type').value;
+  currentEditStage=stage;questions=[];
+  document.querySelectorAll('.stage-tab').forEach(t=>t.classList.toggle('active',t.textContent===stage));
+  renderQList();checkHistory(document.getElementById('setup-name').value);
+  onCategoryChange();
+}
+
+function switchStageTab(stage,el){
+  currentEditStage=stage;questions=[];
+  document.querySelectorAll('.stage-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');renderQList();
+}
+
 function onCategoryChange(){
   const category=document.getElementById('setup-category').value;
   const typeSelect=document.getElementById('setup-type');
-  // カテゴリに応じてセレクトの色を変える
   if(category==='新卒'){
     typeSelect.style.borderColor='#1D9E75';
     typeSelect.style.background='#E1F5EE';
@@ -494,19 +518,7 @@ function onCategoryChange(){
     typeSelect.style.borderColor='#185FA5';
     typeSelect.style.background='#E6F1FB';
   }
-}
-
-function onStageChange(){
-  const stage=document.getElementById('setup-type').value;
-  currentEditStage=stage;questions=[];
-  document.querySelectorAll('.stage-tab').forEach(t=>t.classList.toggle('active',t.textContent===stage));
-  renderQList();checkHistory(document.getElementById('setup-name').value);
-}
-
-function switchStageTab(stage,el){
-  currentEditStage=stage;questions=[];
-  document.querySelectorAll('.stage-tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');renderQList();
+  questions=[];renderQList();
 }
 
 function renderSetup(){
@@ -538,8 +550,14 @@ function deleteAxis(a){
   saveAxes();renderAxisTags();renderQList();
 }
 
+function getStageQuestions(cat, stage){
+  const c=cat||(document.getElementById('setup-category')?.value||'中途');
+  const templates=stageTemplates[c]||DEFAULT_TEMPLATES[c]||DEFAULT_TEMPLATES['中途'];
+  return (templates[stage]||templates['1次面接']||[]).map(q=>({...q}));
+}
+
 function renderQList(){
-  if(!questions.length)questions=(stageTemplates[currentEditStage]||DEFAULT_TEMPLATES[currentEditStage]||[]).map(q=>({...q}));
+  if(!questions.length)questions=getStageQuestions(null,currentEditStage);
   document.getElementById('q-list').innerHTML=questions.map((q,i)=>`
     <div class="q-row" draggable="true" style="display:flex;gap:.5rem;margin-bottom:.5rem;align-items:flex-start;border:1.5px solid transparent;border-radius:var(--radius-sm);padding:2px;transition:border-color .15s"
       ondragstart="dragStart(event,${i})" ondragover="dragOver(event)" ondrop="dragDrop(event,${i})" ondragend="dragEnd(event)">
@@ -570,7 +588,9 @@ function dragEnd(e){e.target.closest('.q-row').style.opacity='1';document.queryS
 function saveTemplateSet(){
   const validQs=questions.filter(q=>q.text.trim());
   if(!validQs.length){alert('質問を入力してください');return;}
-  stageTemplates[currentEditStage]=validQs.map(q=>({...q}));saveStageTemplates();
+  const cat=document.getElementById('setup-category')?.value||'中途';
+  if(!stageTemplates[cat])stageTemplates[cat]={};
+  stageTemplates[cat][currentEditStage]=validQs.map(q=>({...q}));saveStageTemplates();
   const msg=document.getElementById('template-saved-msg');
   if(msg){msg.style.display='block';setTimeout(()=>msg.style.display='none',2000);}
 }
