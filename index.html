@@ -108,6 +108,8 @@
   .stage-tabs{display:flex;gap:.5rem;margin-bottom:1rem}
   .stage-tab{padding:.4rem .875rem;border-radius:20px;font-size:.8rem;cursor:pointer;border:1px solid var(--border2);color:var(--text2);background:transparent}
   .stage-tab.active{background:var(--text);color:#fff;border-color:var(--text)}
+  .cat-chuto{background:#E6F1FB;color:#0C447C;border:1px solid #B5D4F4;font-size:.7rem;padding:.2rem .7rem;border-radius:20px;display:inline-block}
+  .cat-shinsotsu{background:#E1F5EE;color:#0F6E56;border:1px solid #9FE1CB;font-size:.7rem;padding:.2rem .7rem;border-radius:20px;display:inline-block}
 </style>
 </head>
 <body>
@@ -138,6 +140,11 @@
       <div id="history-hint" class="history-hint"></div>
       <label>応募ポジション</label>
       <input type="text" id="setup-pos" placeholder="エンジニア（バックエンド）">
+      <label>採用区分</label>
+      <select id="setup-category" onchange="onCategoryChange()" style="margin-bottom:.5rem">
+        <option value="中途">中途採用</option>
+        <option value="新卒">新卒採用</option>
+      </select>
       <label>面接の種類</label>
       <select id="setup-type" onchange="onStageChange()">
         <option value="1次面接">1次面接</option>
@@ -228,6 +235,8 @@
       <input type="text" id="mgr-search" placeholder="候補者名で検索..." oninput="renderManager()" style="flex:1">
       <select id="mgr-filter" onchange="renderManager()" style="width:100px">
         <option value="">すべて</option>
+        <option value="中途">中途</option>
+        <option value="新卒">新卒</option>
         <option value="pending">判定待ち</option>
         <option value="pass">合格</option>
         <option value="fail">不合格</option>
@@ -474,6 +483,19 @@ function checkHistory(name){
   }else{prevSession=null;hint.style.display='none';}
 }
 
+function onCategoryChange(){
+  const category=document.getElementById('setup-category').value;
+  const typeSelect=document.getElementById('setup-type');
+  // カテゴリに応じてセレクトの色を変える
+  if(category==='新卒'){
+    typeSelect.style.borderColor='#1D9E75';
+    typeSelect.style.background='#E1F5EE';
+  } else {
+    typeSelect.style.borderColor='#185FA5';
+    typeSelect.style.background='#E6F1FB';
+  }
+}
+
 function onStageChange(){
   const stage=document.getElementById('setup-type').value;
   currentEditStage=stage;questions=[];
@@ -559,17 +581,18 @@ function startInterview(){
   const pos=document.getElementById('setup-pos').value.trim();
   const type=document.getElementById('setup-type').value;
   if(!name){alert('候補者名を入力してください');return;}
+  const category=document.getElementById('setup-category').value;
   const interviewer=document.getElementById('setup-interviewer').value.trim();
   const validQs=questions.filter(q=>q.text.trim());
   if(!validQs.length){alert('質問を入力してください');return;}
-  currentSession={id:Date.now(),name,pos,type,interviewer,questions:validQs,axes:[...selectedAxes],createdAt:new Date().toISOString(),status:'pending'};
+  currentSession={id:Date.now(),name,pos,type,category,interviewer,questions:validQs,axes:[...selectedAxes],createdAt:new Date().toISOString(),status:'pending'};
   currentQ=0;axisRatingScores={};
   answers=validQs.map(()=>({answer:'',memo:'',followupQ:'',followupA:'',ownQ:'',skipped:false,freeQs:[]}));
   const now=new Date();
   const dateStr=`${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
   document.getElementById('iv-name').textContent=name;
   const interviewerLabel=interviewer?` | 面接官: ${interviewer}`:'';
-  document.getElementById('iv-pos').textContent=(pos||'')+' | '+type+' | '+dateStr+interviewerLabel;
+  document.getElementById('iv-pos').textContent=(pos||'')+' | '+(category?category+' ':'')+type+' | '+dateStr+interviewerLabel;
   renderQuestion();show('interview');
 }
 
@@ -830,7 +853,7 @@ async function renderManager(){
 
   const filtered=sessions.map((s,i)=>({s,i})).filter(({s})=>{
     const matchName=!keyword||s.name.toLowerCase().includes(keyword);
-    const matchFilter=!filter||(filter==='pending'&&s.status==='pending')||(filter==='pass'&&s.verdict==='pass')||(filter==='fail'&&s.verdict==='fail');
+    const matchFilter=!filter||(filter==='pending'&&s.status==='pending')||(filter==='pass'&&s.verdict==='pass')||(filter==='fail'&&s.verdict==='fail')||(filter==='中途'&&s.category==='中途')||(filter==='新卒'&&s.category==='新卒');
     return matchName&&matchFilter;
   });
 
@@ -840,7 +863,7 @@ async function renderManager(){
     <div class="list-item" style="position:relative">
       <div onclick="openDetail(${i})" style="display:flex;align-items:center;gap:.75rem;flex:1;cursor:pointer">
         <div class="avatar">${s.name.charAt(0)}</div>
-        <div style="flex:1"><div style="font-weight:600;font-size:.9rem">${s.name}</div><div class="meta">${s.pos||''} | ${s.type} | ${s.createdAt?new Date(s.createdAt).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}):''} ${s.interviewer?'| 面接官: '+s.interviewer:''}</div></div>
+        <div style="flex:1"><div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem"><span style="font-weight:600;font-size:.9rem">${s.name}</span>${s.category?`<span class="${s.category==='新卒'?'cat-shinsotsu':'cat-chuto'}">${s.category}</span>`:''}</div><div class="meta">${s.pos||''} | ${s.type} | ${s.createdAt?new Date(s.createdAt).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}):''} ${s.interviewer?'| 面接官: '+s.interviewer:''}</div></div>
         <div style="text-align:right;margin-right:.5rem">
           <div style="font-size:1rem;font-weight:600">${s.avgScore}<span style="font-size:.7rem;color:var(--text3)">/100</span></div>
           <span class="badge ${s.verdict==='pass'?'teal':s.verdict==='fail'?'red':'gray'}">${s.verdict==='pass'?'合格':s.verdict==='fail'?'不合格':'判定待'}</span>
@@ -880,7 +903,7 @@ function openDetail(idx){
     <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem">
       <div class="avatar" style="width:44px;height:44px;font-size:1rem">${s.name.charAt(0)}</div>
       <div>
-        <div style="font-size:1.1rem;font-weight:700">${s.name}</div>
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.2rem"><div style="font-size:1.1rem;font-weight:700">${s.name}</div>${s.category?`<span class="${s.category==='新卒'?'cat-shinsotsu':'cat-chuto'}">${s.category}</span>`:''}</div>
         <div class="meta">${s.pos||''} | ${s.type}</div>
         <div class="meta">${s.createdAt?new Date(s.createdAt).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}):''} ${s.interviewer?'｜ 面接官: '+s.interviewer:''}</div>
       </div>
