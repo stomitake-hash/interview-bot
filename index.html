@@ -144,6 +144,8 @@
         <option value="2次面接">2次面接</option>
         <option value="最終面接">最終面接</option>
       </select>
+      <label>面接官名</label>
+      <input type="text" id="setup-interviewer" placeholder="田中 一郎">
     </div>
     <div class="card">
       <div class="card-title">評価軸を選択・追加</div>
@@ -152,6 +154,8 @@
         <input type="text" id="new-axis-input" placeholder="新しい評価軸を入力（例：誠実さ）" style="flex:1" onkeydown="if(event.key==='Enter')addAxis()">
         <button class="btn" onclick="addAxis()">追加</button>
       </div>
+      <button class="btn teal" onclick="saveSelectedAxes()" style="margin-top:.5rem;width:100%">この評価軸の選択を固定保存</button>
+      <div id="axes-saved-msg" style="display:none;font-size:.8rem;color:var(--teal-text);margin-top:.4rem">✓ 保存しました。次回から自動で選択されます</div>
     </div>
     <div class="card">
       <div class="card-title">質問テンプレート</div>
@@ -220,13 +224,25 @@
       <button class="btn" style="flex:1" onclick="exportAllSessions()">全データを書き出す</button>
     </div>
     <div class="stat-grid" id="mgr-stats"></div>
+    <div style="display:flex;gap:.5rem;margin-bottom:.75rem">
+      <input type="text" id="mgr-search" placeholder="候補者名で検索..." oninput="renderManager()" style="flex:1">
+      <select id="mgr-filter" onchange="renderManager()" style="width:100px">
+        <option value="">すべて</option>
+        <option value="pending">判定待ち</option>
+        <option value="pass">合格</option>
+        <option value="fail">不合格</option>
+      </select>
+    </div>
     <div class="card" style="padding:0;overflow:hidden"><div id="mgr-list"></div></div>
   </div>
 </div>
 
 <div id="screen-detail" class="screen">
   <div class="container-sm">
-    <div class="header-row"><button class="btn ghost" onclick="show('manager');renderManager()">← 一覧</button></div>
+    <div class="header-row">
+      <button class="btn ghost" onclick="show('manager');renderManager()">← 一覧</button>
+      <button class="btn" onclick="printDetail()" style="border-color:var(--teal);color:var(--teal)">📄 印刷</button>
+    </div>
     <div id="detail-content"></div>
   </div>
 </div>
@@ -250,7 +266,7 @@ const FOLLOWUP_BANK={
 let sessions=JSON.parse(localStorage.getItem('iv_sessions')||'[]');
 let currentSession=null,currentQ=0,axisRatingScores={},prevSession=null;
 let allAxes=JSON.parse(localStorage.getItem('iv_axes')||'null')||[...AXES];
-let selectedAxes=["技術力","コミュニケーション","成長意欲"];
+let selectedAxes=JSON.parse(localStorage.getItem('iv_selected_axes')||'null')||["技術力","コミュニケーション","成長意欲"];
 let stageTemplates=JSON.parse(localStorage.getItem('iv_stage_templates')||'null')||JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
 let currentEditStage="1次面接";
 let questions=[],answers=[];
@@ -341,8 +357,42 @@ function printSheet(){
   setTimeout(()=>w.print(),400);
 }
 
-function saveSessions(){localStorage.setItem('iv_sessions',JSON.stringify(sessions));}
+function saveSessions(){
+  localStorage.setItem('iv_sessions',JSON.stringify(sessions));
+}
+
+async function syncToCloud(session){
+  try{
+    await fetch('/api/sessions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(session)
+    });
+  }catch(e){console.log('cloud sync error',e);}
+}
+
+async function deleteFromCloud(id){
+  try{
+    await fetch('/api/sessions?id='+id,{method:'DELETE'});
+  }catch(e){console.log('cloud delete error',e);}
+}
+
+async function loadFromCloud(){
+  try{
+    const res=await fetch('/api/sessions');
+    const data=await res.json();
+    if(Array.isArray(data)&&data.length>0){
+      sessions=data;
+      localStorage.setItem('iv_sessions',JSON.stringify(sessions));
+    }
+  }catch(e){console.log('cloud load error',e);}
+}
 function saveAxes(){localStorage.setItem('iv_axes',JSON.stringify(allAxes));}
+function saveSelectedAxes(){
+  localStorage.setItem('iv_selected_axes',JSON.stringify(selectedAxes));
+  const msg=document.getElementById('axes-saved-msg');
+  if(msg){msg.style.display='block';setTimeout(()=>msg.style.display='none',2500);}
+}
 function saveStageTemplates(){localStorage.setItem('iv_stage_templates',JSON.stringify(stageTemplates));}
 
 function exportLastSession(){
@@ -476,13 +526,17 @@ function startInterview(){
   const pos=document.getElementById('setup-pos').value.trim();
   const type=document.getElementById('setup-type').value;
   if(!name){alert('候補者名を入力してください');return;}
+  const interviewer=document.getElementById('setup-interviewer').value.trim();
   const validQs=questions.filter(q=>q.text.trim());
   if(!validQs.length){alert('質問を入力してください');return;}
-  currentSession={id:Date.now(),name,pos,type,questions:validQs,axes:[...selectedAxes],createdAt:new Date().toISOString(),status:'pending'};
+  currentSession={id:Date.now(),name,pos,type,interviewer,questions:validQs,axes:[...selectedAxes],createdAt:new Date().toISOString(),status:'pending'};
   currentQ=0;axisRatingScores={};
   answers=validQs.map(()=>({answer:'',memo:'',followupQ:'',followupA:'',ownQ:'',skipped:false,freeQs:[]}));
+  const now=new Date();
+  const dateStr=`${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
   document.getElementById('iv-name').textContent=name;
-  document.getElementById('iv-pos').textContent=(pos||'')+' | '+type;
+  const interviewerLabel=interviewer?` | 面接官: ${interviewer}`:'';
+  document.getElementById('iv-pos').textContent=(pos||'')+' | '+type+' | '+dateStr+interviewerLabel;
   renderQuestion();show('interview');
 }
 
@@ -606,22 +660,33 @@ function nextQ(){
   else renderAxisRating();
 }
 
+let aiEvalResult = null;
+
 function renderAxisRating(){
   const axes=currentSession.axes.length?currentSession.axes:[...new Set(currentSession.questions.map(q=>q.axis))];
   document.getElementById('iv-content').innerHTML=`
     <div class="card">
-      <div style="font-size:1rem;font-weight:600;margin-bottom:.25rem">評価軸ごとに点数をつけてください</div>
-      <div class="meta" style="margin-bottom:1.25rem">面接全体を通じた印象で評価してください（1〜5）</div>
-      ${axes.map(axis=>`
-        <div style="margin-bottom:1.25rem">
-          <div style="font-size:.875rem;font-weight:600;margin-bottom:.4rem">${axis}</div>
-          <div class="star-row" id="stars-${axis}">
-            ${[1,2,3,4,5].map(n=>`<span class="star ${(axisRatingScores[axis]||0)>=n?'active':''}" onclick="setAxisScore('${axis}',${n})">★</span>`).join('')}
-          </div>
-        </div>`).join('')}
-      <div style="margin-top:.75rem">
-        <div style="font-size:.8rem;color:var(--text2);margin-bottom:.4rem">総評メモ（任意）</div>
-        <textarea id="overall-memo" placeholder="面接全体の所感・気になった点..." style="min-height:80px"></textarea>
+      <div style="font-size:1rem;font-weight:600;margin-bottom:.25rem">評価してください</div>
+      <div class="meta" style="margin-bottom:1rem">AIの分析と面接官の評価を両方記録します</div>
+
+      <button class="btn" id="ai-eval-btn" onclick="runAiEval()" style="width:100%;margin-bottom:1.25rem;border-color:var(--purple);color:var(--purple)">
+        ✦ AIで回答を分析する
+      </button>
+      <div id="ai-eval-area"></div>
+
+      <div style="border-top:1px solid var(--border);padding-top:1.25rem;margin-top:.5rem">
+        <div style="font-size:.875rem;font-weight:600;margin-bottom:1rem">面接官の評価（1〜5）</div>
+        ${axes.map(axis=>`
+          <div style="margin-bottom:1.25rem">
+            <div style="font-size:.875rem;font-weight:600;margin-bottom:.4rem">${axis}</div>
+            <div class="star-row" id="stars-${axis}">
+              ${[1,2,3,4,5].map(n=>`<span class="star ${(axisRatingScores[axis]||0)>=n?'active':''}" onclick="setAxisScore('${axis}',${n})">★</span>`).join('')}
+            </div>
+          </div>`).join('')}
+        <div style="margin-top:.75rem">
+          <div style="font-size:.8rem;color:var(--text2);margin-bottom:.4rem">総評メモ（任意）</div>
+          <textarea id="overall-memo" placeholder="面接全体の所感・気になった点..." style="min-height:80px"></textarea>
+        </div>
       </div>
     </div>
     <div class="btn-row">
@@ -629,6 +694,73 @@ function renderAxisRating(){
       <button class="btn primary" onclick="finishInterview()">面接を完了</button>
     </div>`;
   window.scrollTo(0,0);
+}
+
+async function runAiEval(){
+  const btn=document.getElementById('ai-eval-btn');
+  const area=document.getElementById('ai-eval-area');
+  btn.disabled=true;btn.textContent='分析中...';
+  area.innerHTML=`<div style="text-align:center;padding:1rem;color:var(--text3);font-size:.875rem">AIが回答内容を分析しています...</div>`;
+  try{
+    const res=await fetch('/api/analyze',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        questions:currentSession.questions,
+        answers:answers,
+        axes:currentSession.axes
+      })
+    });
+    const data=await res.json();
+    if(data.error)throw new Error(data.error);
+    aiEvalResult=data;
+    renderAiResult(data);
+    // AI評価を星に反映（参考として）
+    if(data.axisScores){
+      Object.entries(data.axisScores).forEach(([axis,val])=>{
+        if(!axisRatingScores[axis]){
+          axisRatingScores[axis]=val.score;
+          document.querySelectorAll(`#stars-${CSS.escape(axis)} .star`).forEach((s,i)=>s.classList.toggle('active',i<val.score));
+        }
+      });
+    }
+  }catch(e){
+    area.innerHTML=`<div style="padding:.75rem;background:var(--red-bg);border-radius:var(--radius-sm);font-size:.8rem;color:var(--red-text);margin-bottom:1rem">AI分析エラー: ${e.message}</div>`;
+  }
+  btn.disabled=false;btn.textContent='✦ AIで再分析する';
+}
+
+function renderAiResult(data){
+  const area=document.getElementById('ai-eval-area');
+  const axisRows=data.axisScores?Object.entries(data.axisScores).map(([axis,val])=>`
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
+      <div style="font-size:.8rem;color:var(--text2);width:100px;flex-shrink:0">${axis}</div>
+      <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${val.score*20}%;background:var(--purple);border-radius:3px"></div>
+      </div>
+      <div style="font-size:.8rem;font-weight:600;width:20px;color:var(--purple)">${val.score}</div>
+      <div style="font-size:.75rem;color:var(--text3);flex:1">${val.reason||''}</div>
+    </div>`).join(''):'';
+
+  area.innerHTML=`
+    <div style="background:var(--purple-bg);border:1px solid #AFA9EC;border-radius:var(--radius);padding:1rem;margin-bottom:1.25rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem">
+        <div style="font-size:.8rem;font-weight:600;color:var(--purple-text)">✦ AI分析結果</div>
+        <div style="font-size:1.25rem;font-weight:700;color:var(--purple-text)">${data.totalScore}<span style="font-size:.75rem;font-weight:400">/100</span></div>
+      </div>
+      ${axisRows}
+      ${data.strengths?.length?`
+        <div style="margin-top:.875rem;padding:.6rem .75rem;background:var(--teal-bg);border-radius:var(--radius-sm)">
+          <div style="font-size:.7rem;color:var(--teal-text);font-weight:600;margin-bottom:.3rem">強み</div>
+          ${data.strengths.map(s=>`<div style="font-size:.8rem;color:var(--text2)">・${s}</div>`).join('')}
+        </div>`:''}
+      ${data.concerns?.length?`
+        <div style="margin-top:.5rem;padding:.6rem .75rem;background:var(--amber-bg);border-radius:var(--radius-sm)">
+          <div style="font-size:.7rem;color:var(--amber-text);font-weight:600;margin-bottom:.3rem">懸念点</div>
+          ${data.concerns.map(c=>`<div style="font-size:.8rem;color:var(--text2)">・${c}</div>`).join('')}
+        </div>`:''}
+      ${data.summary?`<div style="margin-top:.75rem;font-size:.8rem;color:var(--purple-text);line-height:1.6">${data.summary}</div>`:''}
+    </div>`;
 }
 function setAxisScore(axis,n){
   axisRatingScores[axis]=n;
@@ -638,9 +770,9 @@ function finishInterview(){
   const axisScores={};Object.keys(axisRatingScores).forEach(k=>axisScores[k]=axisRatingScores[k]*20);
   const vals=Object.values(axisRatingScores);const avg=vals.length?vals.reduce((s,v)=>s+v,0)/vals.length:0;
   const overallMemo=document.getElementById('overall-memo')?.value||'';
-  currentSession.answers=answers;currentSession.axisScores=axisScores;currentSession.avgScore=Math.round(avg*20);
+  currentSession.answers=answers;currentSession.axisScores=axisScores;currentSession.avgScore=Math.round(avg*20);currentSession.aiEval=aiEvalResult;aiEvalResult=null;
   currentSession.overallMemo=overallMemo;currentSession.status='pending';currentSession.completedAt=new Date().toISOString();
-  sessions.unshift(currentSession);saveSessions();
+  sessions.unshift(currentSession);saveSessions();syncToCloud(currentSession);
   const deepCount=answers.filter(a=>(a.followupQ||a.ownQ)&&!a.skipped).length;
   document.getElementById('done-stats').innerHTML=`
     <div class="stat"><div class="stat-val">${answers.filter(a=>a.answer.trim()).length}</div><div class="stat-label">回答した質問</div></div>
@@ -649,7 +781,8 @@ function finishInterview(){
   show('done');
 }
 
-function renderManager(){
+async function renderManager(){
+  await loadFromCloud();
   sessions=JSON.parse(localStorage.getItem('iv_sessions')||'[]');
   const total=sessions.length,passed=sessions.filter(s=>s.verdict==='pass').length,pending=sessions.filter(s=>s.status==='pending').length;
   document.getElementById('mgr-stats').innerHTML=`
@@ -658,18 +791,43 @@ function renderManager(){
     <div class="stat"><div class="stat-val">${pending}</div><div class="stat-label">判定待ち</div></div>`;
   const list=document.getElementById('mgr-list');
   if(!sessions.length){list.innerHTML='<div class="empty">まだ面接データがありません</div>';return;}
-  list.innerHTML=sessions.map((s,i)=>`
-    <div class="list-item" onclick="openDetail(${i})">
-      <div class="avatar">${s.name.charAt(0)}</div>
-      <div style="flex:1"><div style="font-weight:600;font-size:.9rem">${s.name}</div><div class="meta">${s.pos||''} | ${s.type}</div></div>
-      <div style="text-align:right">
-        <div style="font-size:1rem;font-weight:600">${s.avgScore}<span style="font-size:.7rem;color:var(--text3)">/100</span></div>
-        <span class="badge ${s.verdict==='pass'?'teal':s.verdict==='fail'?'red':'gray'}">${s.verdict==='pass'?'合格':s.verdict==='fail'?'不合格':'判定待'}</span>
+
+  const keyword=(document.getElementById('mgr-search')?.value||'').trim().toLowerCase();
+  const filter=document.getElementById('mgr-filter')?.value||'';
+
+  const filtered=sessions.map((s,i)=>({s,i})).filter(({s})=>{
+    const matchName=!keyword||s.name.toLowerCase().includes(keyword);
+    const matchFilter=!filter||(filter==='pending'&&s.status==='pending')||(filter==='pass'&&s.verdict==='pass')||(filter==='fail'&&s.verdict==='fail');
+    return matchName&&matchFilter;
+  });
+
+  if(!filtered.length){list.innerHTML='<div class="empty">該当する候補者がいません</div>';return;}
+
+  list.innerHTML=filtered.map(({s,i})=>`
+    <div class="list-item" style="position:relative">
+      <div onclick="openDetail(${i})" style="display:flex;align-items:center;gap:.75rem;flex:1;cursor:pointer">
+        <div class="avatar">${s.name.charAt(0)}</div>
+        <div style="flex:1"><div style="font-weight:600;font-size:.9rem">${s.name}</div><div class="meta">${s.pos||''} | ${s.type} | ${s.createdAt?new Date(s.createdAt).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}):''} ${s.interviewer?'| 面接官: '+s.interviewer:''}</div></div>
+        <div style="text-align:right;margin-right:.5rem">
+          <div style="font-size:1rem;font-weight:600">${s.avgScore}<span style="font-size:.7rem;color:var(--text3)">/100</span></div>
+          <span class="badge ${s.verdict==='pass'?'teal':s.verdict==='fail'?'red':'gray'}">${s.verdict==='pass'?'合格':s.verdict==='fail'?'不合格':'判定待'}</span>
+        </div>
       </div>
+      <button class="btn ghost" onclick="deleteSession(${i})" style="padding:.3rem .5rem;color:var(--red-text);flex-shrink:0" title="削除">✕</button>
     </div>`).join('');
 }
 
+function deleteSession(idx){
+  const s=sessions[idx];
+  if(!confirm(`「${s.name}（${s.type}）」のデータを削除しますか？この操作は元に戻せません。`))return;
+  deleteFromCloud(s.id);
+  sessions.splice(idx,1);
+  saveSessions();
+  renderManager();
+}
+
 function openDetail(idx){
+  currentDetailIdx=idx;
   const s=sessions[idx];
   const axisRows=Object.entries(s.axisScores||{}).map(([k,v])=>`
     <div class="score-bar-row"><div class="score-bar-label">${k}</div><div class="score-bar-track"><div class="score-bar-fill" style="width:${v}%"></div></div><div class="score-bar-num">${v}</div></div>`).join('');
@@ -688,10 +846,32 @@ function openDetail(idx){
   document.getElementById('detail-content').innerHTML=`
     <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem">
       <div class="avatar" style="width:44px;height:44px;font-size:1rem">${s.name.charAt(0)}</div>
-      <div><div style="font-size:1.1rem;font-weight:700">${s.name}</div><div class="meta">${s.pos||''} | ${s.type}</div></div>
+      <div>
+        <div style="font-size:1.1rem;font-weight:700">${s.name}</div>
+        <div class="meta">${s.pos||''} | ${s.type}</div>
+        <div class="meta">${s.createdAt?new Date(s.createdAt).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}):''} ${s.interviewer?'｜ 面接官: '+s.interviewer:''}</div>
+      </div>
       <div style="margin-left:auto;text-align:right"><div style="font-size:1.5rem;font-weight:700">${s.avgScore}<span style="font-size:.75rem;color:var(--text3)">/100</span></div></div>
     </div>
-    <div class="card"><div class="card-title">評価軸スコア</div>${axisRows}</div>
+    ${s.aiEval?`
+    <div class="card">
+      <div class="card-title">AI分析結果</div>
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem">
+        <div style="font-size:1.5rem;font-weight:700;color:var(--purple-text)">${s.aiEval.totalScore}<span style="font-size:.75rem;font-weight:400;color:var(--text3)">/100</span></div>
+        <div style="font-size:.8rem;color:var(--text3)">AI総合スコア</div>
+      </div>
+      ${s.aiEval.axisScores?Object.entries(s.aiEval.axisScores).map(([axis,val])=>`
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
+          <div style="font-size:.8rem;color:var(--text2);width:100px;flex-shrink:0">${axis}</div>
+          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:${val.score*20}%;background:var(--purple);border-radius:3px"></div></div>
+          <div style="font-size:.8rem;font-weight:600;width:20px;color:var(--purple)">${val.score}</div>
+          <div style="font-size:.75rem;color:var(--text3);flex:1">${val.reason||''}</div>
+        </div>`).join(''):''}
+      ${s.aiEval.strengths?.length?`<div style="margin-top:.75rem;padding:.6rem .75rem;background:var(--teal-bg);border-radius:var(--radius-sm)"><div style="font-size:.7rem;color:var(--teal-text);font-weight:600;margin-bottom:.3rem">強み</div>${s.aiEval.strengths.map(st=>`<div style="font-size:.8rem;color:var(--text2)">・${st}</div>`).join('')}</div>`:''}
+      ${s.aiEval.concerns?.length?`<div style="margin-top:.5rem;padding:.6rem .75rem;background:var(--amber-bg);border-radius:var(--radius-sm)"><div style="font-size:.7rem;color:var(--amber-text);font-weight:600;margin-bottom:.3rem">懸念点</div>${s.aiEval.concerns.map(c=>`<div style="font-size:.8rem;color:var(--text2)">・${c}</div>`).join('')}</div>`:''}
+      ${s.aiEval.summary?`<div style="margin-top:.75rem;font-size:.875rem;color:var(--text2);line-height:1.6">${s.aiEval.summary}</div>`:''}
+    </div>`:''}
+    <div class="card"><div class="card-title">面接官の評価</div>${axisRows}</div>
     ${s.overallMemo?`<div class="card"><div class="card-title">総評メモ</div><div style="font-size:.875rem;color:var(--text2);line-height:1.6">${s.overallMemo}</div></div>`:''}
     <div class="card"><div class="card-title">面接ログ</div>${qaRows}</div>
     <div class="card">
@@ -706,10 +886,101 @@ function openDetail(idx){
     </div>`;
   show('detail');
 }
+function printDetail(){
+  const s=sessions[currentDetailIdx];
+  if(!s){alert('データがありません');return;}
+  const date=s.createdAt?new Date(s.createdAt).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}):'';
+  const axisRows=Object.entries(s.axisScores||{}).map(([k,v])=>`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div style="width:100px;font-size:11px">${k}</div>
+      <div style="flex:1;height:6px;background:#eee;border-radius:3px;overflow:hidden"><div style="height:100%;width:${v}%;background:#1D9E75;border-radius:3px"></div></div>
+      <div style="width:30px;font-size:11px;text-align:right">${v}</div>
+    </div>`).join('');
+
+  const aiRows=s.aiEval?.axisScores?Object.entries(s.aiEval.axisScores).map(([k,v])=>`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div style="width:100px;font-size:11px">${k}</div>
+      <div style="flex:1;height:6px;background:#eee;border-radius:3px;overflow:hidden"><div style="height:100%;width:${v.score*20}%;background:#534AB7;border-radius:3px"></div></div>
+      <div style="width:30px;font-size:11px;text-align:right">${v.score}</div>
+      <div style="font-size:10px;color:#666;flex:1">${v.reason||''}</div>
+    </div>`).join(''):'';
+
+  const qaRows=(s.answers||[]).map((a,i)=>`
+    <div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #eee;page-break-inside:avoid">
+      <div style="display:flex;gap:6px;margin-bottom:4px">
+        <span style="font-size:9px;color:#888">Q${i+1}</span>
+        <span style="font-size:9px;background:#E6F1FB;color:#0C447C;padding:1px 6px;border-radius:10px">${s.questions[i]?.axis||''}</span>
+      </div>
+      <div style="font-size:11px;font-weight:600;margin-bottom:4px;line-height:1.5">${s.questions[i]?.text||''}</div>
+      <div style="display:grid;grid-template-columns:1fr ${a.memo?'1fr':'0fr'};gap:10px">
+        <div><div style="font-size:9px;color:#888;margin-bottom:2px">回答</div><div style="font-size:11px;color:#333;line-height:1.6">${a.answer||'（回答なし）'}</div></div>
+        ${a.memo?`<div style="background:#FAEEDA;padding:6px 8px;border-radius:4px"><div style="font-size:9px;color:#633806;margin-bottom:2px">面接官メモ</div><div style="font-size:11px;color:#333">${a.memo}</div></div>`:''}
+      </div>
+      ${(a.followupQ||a.ownQ)?`<div style="margin-top:5px;padding:5px 8px;background:#FAEEDA;border-radius:4px"><div style="font-size:9px;color:#633806;font-weight:600;margin-bottom:2px">深掘り</div><div style="font-size:11px;font-weight:600">${a.followupQ||a.ownQ}</div><div style="font-size:11px;color:#555">${a.followupA||'（回答なし）'}</div></div>`:''}
+      ${(a.freeQs||[]).map(fq=>`<div style="margin-top:5px;padding:5px 8px;background:#E1F5EE;border-radius:4px"><div style="font-size:9px;color:#0F6E56;font-weight:600;margin-bottom:2px">自由質問</div><div style="font-size:11px;font-weight:600">${fq.q}</div><div style="font-size:11px;color:#555">${fq.a||'（回答なし）'}</div></div>`).join('')}
+    </div>`).join('');
+
+  const verdictColor=s.verdict==='pass'?'#0F6E56':s.verdict==='fail'?'#A32D2D':'#888';
+  const verdictText=s.verdict==='pass'?'合格':s.verdict==='fail'?'不合格':'未判定';
+
+  const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+  <title>面接記録_${s.name}_${s.type}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;font-size:11px;color:#111;padding:16px 20px;line-height:1.5}
+    @media print{body{padding:8px 12px}@page{margin:10mm}}
+  </style></head><body>
+
+  <div style="border-bottom:2px solid #1D9E75;padding-bottom:8px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-end">
+    <div><div style="font-size:16px;font-weight:700;color:#1D9E75">面接記録</div><div style="font-size:11px;color:#555">${s.type}</div></div>
+    <div style="font-size:11px;color:#555">${date}　面接官: ${s.interviewer||'―'}</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;padding:8px 10px;background:#f8f7f4;border-radius:6px">
+    <div><div style="font-size:9px;color:#888">候補者名</div><div style="font-size:13px;font-weight:700">${s.name}</div></div>
+    <div><div style="font-size:9px;color:#888">応募ポジション</div><div style="font-size:12px;font-weight:600">${s.pos||'―'}</div></div>
+    <div><div style="font-size:9px;color:#888">合否</div><div style="font-size:14px;font-weight:700;color:${verdictColor}">${verdictText}</div></div>
+  </div>
+
+  ${s.comment?`<div style="margin-bottom:12px;padding:8px 10px;background:#f8f7f4;border-radius:6px"><div style="font-size:9px;color:#888;margin-bottom:3px">担当者コメント</div><div style="font-size:11px;line-height:1.6">${s.comment}</div></div>`:''}
+
+  <div style="display:grid;grid-template-columns:${s.aiEval?'1fr 1fr':'1fr'};gap:12px;margin-bottom:12px">
+    <div>
+      <div style="font-size:10px;font-weight:700;color:#1D9E75;border-bottom:1px solid #1D9E75;padding-bottom:3px;margin-bottom:8px">面接官の評価</div>
+      <div style="margin-bottom:4px;font-size:10px;font-weight:600">総合: ${s.avgScore}/100</div>
+      ${axisRows}
+      ${s.overallMemo?`<div style="margin-top:6px;padding:5px 8px;background:#FAEEDA;border-radius:4px"><div style="font-size:9px;color:#633806;margin-bottom:2px">総評メモ</div><div style="font-size:11px">${s.overallMemo}</div></div>`:''}
+    </div>
+    ${s.aiEval?`
+    <div>
+      <div style="font-size:10px;font-weight:700;color:#534AB7;border-bottom:1px solid #534AB7;padding-bottom:3px;margin-bottom:8px">AI分析結果</div>
+      <div style="margin-bottom:4px;font-size:10px;font-weight:600">総合: ${s.aiEval.totalScore}/100</div>
+      ${aiRows}
+      ${s.aiEval.strengths?.length?`<div style="margin-top:5px;padding:4px 7px;background:#E1F5EE;border-radius:4px"><div style="font-size:9px;color:#0F6E56;font-weight:600;margin-bottom:2px">強み</div>${s.aiEval.strengths.map(st=>`<div style="font-size:10px">・${st}</div>`).join('')}</div>`:''}
+      ${s.aiEval.concerns?.length?`<div style="margin-top:4px;padding:4px 7px;background:#FAEEDA;border-radius:4px"><div style="font-size:9px;color:#633806;font-weight:600;margin-bottom:2px">懸念点</div>${s.aiEval.concerns.map(c=>`<div style="font-size:10px">・${c}</div>`).join('')}</div>`:''}
+      ${s.aiEval.summary?`<div style="margin-top:4px;font-size:10px;color:#3C3489;line-height:1.5">${s.aiEval.summary}</div>`:''}
+    </div>`:''}
+  </div>
+
+  <div style="font-size:10px;font-weight:700;color:#1D9E75;border-bottom:1px solid #1D9E75;padding-bottom:3px;margin-bottom:8px">面接ログ</div>
+  ${qaRows}
+
+  <div style="margin-top:12px;padding-top:8px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:9px;color:#888">
+    <span>面接合否ボット</span><span>出力日: ${new Date().toLocaleDateString('ja-JP')}</span>
+  </div>
+  </body></html>`;
+
+  const w=window.open('','_blank','width=900,height=1100');
+  w.document.write(html);w.document.close();
+  setTimeout(()=>w.print(),400);
+}
+
+let currentDetailIdx=null;
+
 function decide(idx,result){
   const comment=document.getElementById('verdict-comment')?.value||'';
   sessions[idx].verdict=result;sessions[idx].comment=comment;sessions[idx].status='decided';sessions[idx].decidedAt=new Date().toISOString();
-  saveSessions();openDetail(idx);
+  saveSessions();syncToCloud(sessions[idx]);openDetail(idx);
 }
 function resetVerdict(idx){sessions[idx].verdict=null;sessions[idx].status='pending';saveSessions();openDetail(idx);}
 </script>
