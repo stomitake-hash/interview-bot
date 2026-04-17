@@ -108,8 +108,6 @@
   .stage-tabs{display:flex;gap:.5rem;margin-bottom:1rem}
   .stage-tab{padding:.4rem .875rem;border-radius:20px;font-size:.8rem;cursor:pointer;border:1px solid var(--border2);color:var(--text2);background:transparent}
   .stage-tab.active{background:var(--text);color:#fff;border-color:var(--text)}
-  .cat-chuto{background:#E6F1FB;color:#0C447C;border:1px solid #B5D4F4;font-size:.7rem;padding:.2rem .7rem;border-radius:20px;display:inline-block}
-  .cat-shinsotsu{background:#E1F5EE;color:#0F6E56;border:1px solid #9FE1CB;font-size:.7rem;padding:.2rem .7rem;border-radius:20px;display:inline-block}
 </style>
 </head>
 <body>
@@ -140,11 +138,6 @@
       <div id="history-hint" class="history-hint"></div>
       <label>応募ポジション</label>
       <input type="text" id="setup-pos" placeholder="エンジニア（バックエンド）">
-      <label>採用区分</label>
-      <select id="setup-category" onchange="onCategoryChange()" style="margin-bottom:.5rem">
-        <option value="中途">中途採用</option>
-        <option value="新卒">新卒採用</option>
-      </select>
       <label>面接の種類</label>
       <select id="setup-type" onchange="onStageChange()">
         <option value="1次面接">1次面接</option>
@@ -235,8 +228,6 @@
       <input type="text" id="mgr-search" placeholder="候補者名で検索..." oninput="renderManager()" style="flex:1">
       <select id="mgr-filter" onchange="renderManager()" style="width:100px">
         <option value="">すべて</option>
-        <option value="中途">中途</option>
-        <option value="新卒">新卒</option>
         <option value="pending">判定待ち</option>
         <option value="pass">合格</option>
         <option value="fail">不合格</option>
@@ -259,16 +250,9 @@
 <script>
 const AXES=["技術力","コミュニケーション","論理的思考","リーダーシップ","主体性","成長意欲"];
 const DEFAULT_TEMPLATES={
-  "中途": {
-    "1次面接":[{axis:"技術力",text:"これまでの経験で最も難しかった仕事を教えてください。"},{axis:"コミュニケーション",text:"チームで意見が対立したとき、どのように解決しましたか？"},{axis:"成長意欲",text:"なぜ転職を考えたのですか？"}],
-    "2次面接":[{axis:"論理的思考",text:"前回の面接でお話しいただいた経験について、もう少し詳しく聞かせてください。"},{axis:"リーダーシップ",text:"チームをまとめた経験はありますか？具体的に教えてください。"},{axis:"主体性",text:"自分から率先して動いた具体的な経験を教えてください。"}],
-    "最終面接":[{axis:"成長意欲",text:"5年後のキャリアビジョンを教えてください。"},{axis:"コミュニケーション",text:"弊社のどんな点に魅力を感じていますか？"},{axis:"技術力",text:"入社後にどんな貢献ができると思いますか？"}]
-  },
-  "新卒": {
-    "1次面接":[{axis:"主体性",text:"学生時代に最も力を入れて取り組んだことを教えてください。"},{axis:"コミュニケーション",text:"チームで何かを成し遂げた経験を教えてください。"},{axis:"成長意欲",text:"なぜ弊社を志望しましたか？"}],
-    "2次面接":[{axis:"論理的思考",text:"前回お話しいただいた経験で、困難をどう乗り越えましたか？"},{axis:"主体性",text:"自分から提案・行動したエピソードを教えてください。"},{axis:"成長意欲",text:"入社後にどんなことに挑戦したいですか？"}],
-    "最終面接":[{axis:"成長意欲",text:"10年後のキャリアビジョンを教えてください。"},{axis:"コミュニケーション",text:"弊社のどんな点に魅力を感じていますか？"},{axis:"主体性",text:"学生時代の経験をどう仕事に活かせると思いますか？"}]
-  }
+  "1次面接":[{axis:"技術力",text:"これまでの経験で最も難しかった仕事を教えてください。"},{axis:"コミュニケーション",text:"チームで意見が対立したとき、どのように解決しましたか？"},{axis:"成長意欲",text:"なぜ転職（就職）を考えたのですか？"}],
+  "2次面接":[{axis:"論理的思考",text:"前回の面接でお話しいただいた経験について、もう少し詳しく聞かせてください。"},{axis:"リーダーシップ",text:"チームをまとめた経験はありますか？具体的に教えてください。"},{axis:"主体性",text:"自分から率先して動いた具体的な経験を教えてください。"}],
+  "最終面接":[{axis:"成長意欲",text:"5年後のキャリアビジョンを教えてください。"},{axis:"コミュニケーション",text:"弊社のどんな点に魅力を感じていますか？"},{axis:"技術力",text:"入社後にどんな貢献ができると思いますか？"}]
 };
 const FOLLOWUP_BANK={
   "技術力":["その解決策を選んだ理由を、他の選択肢と比較して教えてもらえますか？","技術的に一番苦労した点は具体的にどこでしたか？","同じ状況が再び起きたら、次は何を変えますか？"],
@@ -284,10 +268,6 @@ let currentSession=null,currentQ=0,axisRatingScores={},prevSession=null;
 let allAxes=JSON.parse(localStorage.getItem('iv_axes')||'null')||[...AXES];
 let selectedAxes=JSON.parse(localStorage.getItem('iv_selected_axes')||'null')||["技術力","コミュニケーション","成長意欲"];
 let stageTemplates=JSON.parse(localStorage.getItem('iv_stage_templates')||'null')||JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
-// 旧形式（カテゴリなし）を新形式に移行
-if(stageTemplates&&!stageTemplates['中途']&&!stageTemplates['新卒']){
-  stageTemplates={中途:{...stageTemplates},新卒:JSON.parse(JSON.stringify(DEFAULT_TEMPLATES['新卒']))};
-}
 let currentEditStage="1次面接";
 let questions=[],answers=[];
 
@@ -407,46 +387,13 @@ async function loadFromCloud(){
     }
   }catch(e){console.log('cloud load error',e);}
 }
-function saveAxes(){
-  localStorage.setItem('iv_axes',JSON.stringify(allAxes));
-  syncSetting('axes',allAxes);
-}
+function saveAxes(){localStorage.setItem('iv_axes',JSON.stringify(allAxes));}
 function saveSelectedAxes(){
   localStorage.setItem('iv_selected_axes',JSON.stringify(selectedAxes));
-  syncSetting('selected_axes',selectedAxes);
   const msg=document.getElementById('axes-saved-msg');
   if(msg){msg.style.display='block';setTimeout(()=>msg.style.display='none',2500);}
 }
-function saveStageTemplates(){
-  localStorage.setItem('iv_stage_templates',JSON.stringify(stageTemplates));
-  syncSetting('stage_templates',stageTemplates);
-}
-
-async function syncSetting(key,data){
-  try{
-    await fetch('/api/settings',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({key,data})
-    });
-  }catch(e){console.log('settings sync error',e);}
-}
-
-async function loadSettings(){
-  try{
-    const [axesRes,selectedRes,templatesRes]=await Promise.all([
-      fetch('/api/settings?key=axes'),
-      fetch('/api/settings?key=selected_axes'),
-      fetch('/api/settings?key=stage_templates')
-    ]);
-    const [axesData,selectedData,templatesData]=await Promise.all([
-      axesRes.json(),selectedRes.json(),templatesRes.json()
-    ]);
-    if(axesData){allAxes=axesData;localStorage.setItem('iv_axes',JSON.stringify(allAxes));}
-    if(selectedData){selectedAxes=selectedData;localStorage.setItem('iv_selected_axes',JSON.stringify(selectedAxes));}
-    if(templatesData){stageTemplates=templatesData;localStorage.setItem('iv_stage_templates',JSON.stringify(stageTemplates));}
-  }catch(e){console.log('settings load error',e);}
-}
+function saveStageTemplates(){localStorage.setItem('iv_stage_templates',JSON.stringify(stageTemplates));}
 
 function exportLastSession(){
   if(!sessions.length)return;
@@ -477,7 +424,7 @@ function importSessions(event){
 }
 
 function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById('screen-'+id).classList.add('active');window.scrollTo(0,0);}
-async function goInterviewer(){await loadSettings();renderSetup();show('setup');}
+function goInterviewer(){renderSetup();show('setup');}
 function goManager(){renderManager();show('manager');}
 
 function checkHistory(name){
@@ -499,26 +446,12 @@ function onStageChange(){
   currentEditStage=stage;questions=[];
   document.querySelectorAll('.stage-tab').forEach(t=>t.classList.toggle('active',t.textContent===stage));
   renderQList();checkHistory(document.getElementById('setup-name').value);
-  onCategoryChange();
 }
 
 function switchStageTab(stage,el){
   currentEditStage=stage;questions=[];
   document.querySelectorAll('.stage-tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');renderQList();
-}
-
-function onCategoryChange(){
-  const category=document.getElementById('setup-category').value;
-  const typeSelect=document.getElementById('setup-type');
-  if(category==='新卒'){
-    typeSelect.style.borderColor='#1D9E75';
-    typeSelect.style.background='#E1F5EE';
-  } else {
-    typeSelect.style.borderColor='#185FA5';
-    typeSelect.style.background='#E6F1FB';
-  }
-  questions=[];renderQList();
 }
 
 function renderSetup(){
@@ -550,14 +483,8 @@ function deleteAxis(a){
   saveAxes();renderAxisTags();renderQList();
 }
 
-function getStageQuestions(cat, stage){
-  const c=cat||(document.getElementById('setup-category')?.value||'中途');
-  const templates=stageTemplates[c]||DEFAULT_TEMPLATES[c]||DEFAULT_TEMPLATES['中途'];
-  return (templates[stage]||templates['1次面接']||[]).map(q=>({...q}));
-}
-
 function renderQList(){
-  if(!questions.length)questions=getStageQuestions(null,currentEditStage);
+  if(!questions.length)questions=(stageTemplates[currentEditStage]||DEFAULT_TEMPLATES[currentEditStage]||[]).map(q=>({...q}));
   document.getElementById('q-list').innerHTML=questions.map((q,i)=>`
     <div class="q-row" draggable="true" style="display:flex;gap:.5rem;margin-bottom:.5rem;align-items:flex-start;border:1.5px solid transparent;border-radius:var(--radius-sm);padding:2px;transition:border-color .15s"
       ondragstart="dragStart(event,${i})" ondragover="dragOver(event)" ondrop="dragDrop(event,${i})" ondragend="dragEnd(event)">
@@ -588,9 +515,7 @@ function dragEnd(e){e.target.closest('.q-row').style.opacity='1';document.queryS
 function saveTemplateSet(){
   const validQs=questions.filter(q=>q.text.trim());
   if(!validQs.length){alert('質問を入力してください');return;}
-  const cat=document.getElementById('setup-category')?.value||'中途';
-  if(!stageTemplates[cat])stageTemplates[cat]={};
-  stageTemplates[cat][currentEditStage]=validQs.map(q=>({...q}));saveStageTemplates();
+  stageTemplates[currentEditStage]=validQs.map(q=>({...q}));saveStageTemplates();
   const msg=document.getElementById('template-saved-msg');
   if(msg){msg.style.display='block';setTimeout(()=>msg.style.display='none',2000);}
 }
@@ -601,18 +526,17 @@ function startInterview(){
   const pos=document.getElementById('setup-pos').value.trim();
   const type=document.getElementById('setup-type').value;
   if(!name){alert('候補者名を入力してください');return;}
-  const category=document.getElementById('setup-category').value;
   const interviewer=document.getElementById('setup-interviewer').value.trim();
   const validQs=questions.filter(q=>q.text.trim());
   if(!validQs.length){alert('質問を入力してください');return;}
-  currentSession={id:Date.now(),name,pos,type,category,interviewer,questions:validQs,axes:[...selectedAxes],createdAt:new Date().toISOString(),status:'pending'};
+  currentSession={id:Date.now(),name,pos,type,interviewer,questions:validQs,axes:[...selectedAxes],createdAt:new Date().toISOString(),status:'pending'};
   currentQ=0;axisRatingScores={};
   answers=validQs.map(()=>({answer:'',memo:'',followupQ:'',followupA:'',ownQ:'',skipped:false,freeQs:[]}));
   const now=new Date();
   const dateStr=`${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
   document.getElementById('iv-name').textContent=name;
   const interviewerLabel=interviewer?` | 面接官: ${interviewer}`:'';
-  document.getElementById('iv-pos').textContent=(pos||'')+' | '+(category?category+' ':'')+type+' | '+dateStr+interviewerLabel;
+  document.getElementById('iv-pos').textContent=(pos||'')+' | '+type+' | '+dateStr+interviewerLabel;
   renderQuestion();show('interview');
 }
 
@@ -873,7 +797,7 @@ async function renderManager(){
 
   const filtered=sessions.map((s,i)=>({s,i})).filter(({s})=>{
     const matchName=!keyword||s.name.toLowerCase().includes(keyword);
-    const matchFilter=!filter||(filter==='pending'&&s.status==='pending')||(filter==='pass'&&s.verdict==='pass')||(filter==='fail'&&s.verdict==='fail')||(filter==='中途'&&s.category==='中途')||(filter==='新卒'&&s.category==='新卒');
+    const matchFilter=!filter||(filter==='pending'&&s.status==='pending')||(filter==='pass'&&s.verdict==='pass')||(filter==='fail'&&s.verdict==='fail');
     return matchName&&matchFilter;
   });
 
@@ -883,7 +807,7 @@ async function renderManager(){
     <div class="list-item" style="position:relative">
       <div onclick="openDetail(${i})" style="display:flex;align-items:center;gap:.75rem;flex:1;cursor:pointer">
         <div class="avatar">${s.name.charAt(0)}</div>
-        <div style="flex:1"><div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem"><span style="font-weight:600;font-size:.9rem">${s.name}</span>${s.category?`<span class="${s.category==='新卒'?'cat-shinsotsu':'cat-chuto'}">${s.category}</span>`:''}</div><div class="meta">${s.pos||''} | ${s.type} | ${s.createdAt?new Date(s.createdAt).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}):''} ${s.interviewer?'| 面接官: '+s.interviewer:''}</div></div>
+        <div style="flex:1"><div style="font-weight:600;font-size:.9rem">${s.name}</div><div class="meta">${s.pos||''} | ${s.type} | ${s.createdAt?new Date(s.createdAt).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}):''} ${s.interviewer?'| 面接官: '+s.interviewer:''}</div></div>
         <div style="text-align:right;margin-right:.5rem">
           <div style="font-size:1rem;font-weight:600">${s.avgScore}<span style="font-size:.7rem;color:var(--text3)">/100</span></div>
           <span class="badge ${s.verdict==='pass'?'teal':s.verdict==='fail'?'red':'gray'}">${s.verdict==='pass'?'合格':s.verdict==='fail'?'不合格':'判定待'}</span>
@@ -923,7 +847,7 @@ function openDetail(idx){
     <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem">
       <div class="avatar" style="width:44px;height:44px;font-size:1rem">${s.name.charAt(0)}</div>
       <div>
-        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.2rem"><div style="font-size:1.1rem;font-weight:700">${s.name}</div>${s.category?`<span class="${s.category==='新卒'?'cat-shinsotsu':'cat-chuto'}">${s.category}</span>`:''}</div>
+        <div style="font-size:1.1rem;font-weight:700">${s.name}</div>
         <div class="meta">${s.pos||''} | ${s.type}</div>
         <div class="meta">${s.createdAt?new Date(s.createdAt).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}):''} ${s.interviewer?'｜ 面接官: '+s.interviewer:''}</div>
       </div>
