@@ -1,9 +1,49 @@
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { questions, answers, axes } = req.body;
+  const { mode, question, axis, answer, category, questions, answers, axes } = req.body;
+
+  if (mode === 'followup') {
+    if (!question || !answer) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    const prompt = `あなたは採用面接の深掘り質問を生成する専門AIです。
+
+面接の質問: ${question}
+評価軸: ${axis}
+採用区分: ${category||'中途'}
+候補者の回答: ${answer}
+
+この回答に対して、候補者の具体的な経験・思考・行動をさらに深く引き出す深掘り質問を1つ生成してください。
+回答の曖昧な点や、もっと詳しく聞きたい点に着目してください。
+質問は1〜2文で、日本語で、質問文のみ出力してください。`;
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 200,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      const data = await response.json();
+      if (data.error) return res.status(500).json({ error: data.error.message });
+      return res.status(200).json({ followupQuestion: data.content[0].text.trim() });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
 
   if (!questions || !answers) {
     return res.status(400).json({ error: 'Missing required fields' });
