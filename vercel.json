@@ -1,13 +1,6 @@
 {
-  "functions": {
-    "API/analyze.js": { "memory": 1024 },
-    "API/sessions.js": { "memory": 1024 },
-    "API/settings.js": { "memory": 1024 }
-  },
   "rewrites": [
-    { "source": "/api/analyze", "destination": "/API/analyze" },
-    { "source": "/api/sessions", "destination": "/API/sessions" },
-    { "source": "/api/settings", "destination": "/API/settings" },
+    { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
