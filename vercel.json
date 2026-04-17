@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "API/analyze.js": { "memory": 1024 },
+    "API/sessions.js": { "memory": 1024 },
+    "API/settings.js": { "memory": 1024 }
+  },
   "rewrites": [
     { "source": "/api/analyze", "destination": "/API/analyze" },
     { "source": "/api/sessions", "destination": "/API/sessions" },
