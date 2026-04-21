@@ -709,7 +709,7 @@ async function generateAiFollowup(){
   btn.disabled=true;btn.textContent='生成中...';
 
   try{
-    const res=await fetch('/api/analyze',{
+    const res=await fetch('/API/analyze',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
@@ -824,7 +824,7 @@ async function runAiEval(){
   btn.disabled=true;btn.textContent='分析中...';
   area.innerHTML=`<div style="text-align:center;padding:1rem;color:var(--text3);font-size:.875rem">AIが回答内容を分析しています...</div>`;
   try{
-    const res=await fetch('/api/analyze',{
+    const res=await fetch('/API/analyze',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
