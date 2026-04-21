@@ -257,6 +257,9 @@
 </div>
 
 <script>
+// ★ VercelのAPIエンドポイント（絶対URL）
+const API_BASE = 'https://interview-bot-black.vercel.app';
+
 const AXES=["技術力","コミュニケーション","論理的思考","リーダーシップ","主体性","成長意欲"];
 const DEFAULT_TEMPLATES={
   "中途": {
@@ -284,7 +287,6 @@ let currentSession=null,currentQ=0,axisRatingScores={},prevSession=null;
 let allAxes=JSON.parse(localStorage.getItem('iv_axes')||'null')||[...AXES];
 let selectedAxes=JSON.parse(localStorage.getItem('iv_selected_axes')||'null')||["技術力","コミュニケーション","成長意欲"];
 let stageTemplates=JSON.parse(localStorage.getItem('iv_stage_templates')||'null')||JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
-// 旧形式（カテゴリなし）を新形式に移行
 if(stageTemplates&&!stageTemplates['中途']&&!stageTemplates['新卒']){
   stageTemplates={中途:{...stageTemplates},新卒:JSON.parse(JSON.stringify(DEFAULT_TEMPLATES['新卒']))};
 }
@@ -298,7 +300,6 @@ function printSheet(){
   const validQs=questions.filter(q=>q.text.trim());
   if(!validQs.length){alert('質問テンプレートを設定してください');return;}
   const axes=selectedAxes.length?selectedAxes:[...new Set(validQs.map(q=>q.axis))];
-
   const qRows=validQs.map((q,i)=>`
     <div class="ps-qblock">
       <div class="ps-qheader">
@@ -313,14 +314,12 @@ function printSheet(){
         <div class="ps-field-box" style="height:44px"></div>
       </div>
     </div>`).join('');
-
   const axisRows=axes.map(a=>`
     <div class="ps-axis-row">
       <div class="ps-axis-name">${a}</div>
       <div class="ps-stars">☆☆☆☆☆</div>
       <div class="ps-axis-memo"><div class="ps-field-box" style="height:28px;flex:1"></div></div>
     </div>`).join('');
-
   const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
   <title>面接シート_${name}_${type}</title>
   <style>
@@ -371,77 +370,45 @@ function printSheet(){
     <span>このシートはアプリに入力後、保管してください</span>
   </div>
   </body></html>`;
-
   const w=window.open('','_blank','width=800,height:1000');
   w.document.write(html);w.document.close();
   setTimeout(()=>w.print(),400);
 }
 
-function saveSessions(){
-  localStorage.setItem('iv_sessions',JSON.stringify(sessions));
-}
+function saveSessions(){localStorage.setItem('iv_sessions',JSON.stringify(sessions));}
 
 async function syncToCloud(session){
-  try{
-    await fetch('/api/sessions',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(session)
-    });
-  }catch(e){console.log('cloud sync error',e);}
+  try{await fetch(API_BASE+'/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(session)});}catch(e){console.log('cloud sync error',e);}
 }
-
 async function deleteFromCloud(id){
-  try{
-    await fetch('/api/sessions?id='+id,{method:'DELETE'});
-  }catch(e){console.log('cloud delete error',e);}
+  try{await fetch(API_BASE+'/api/sessions?id='+id,{method:'DELETE'});}catch(e){console.log('cloud delete error',e);}
 }
-
 async function loadFromCloud(){
   try{
-    const res=await fetch('/api/sessions');
+    const res=await fetch(API_BASE+'/api/sessions');
     const data=await res.json();
-    if(Array.isArray(data)&&data.length>0){
-      sessions=data;
-      localStorage.setItem('iv_sessions',JSON.stringify(sessions));
-    }
+    if(Array.isArray(data)&&data.length>0){sessions=data;localStorage.setItem('iv_sessions',JSON.stringify(sessions));}
   }catch(e){console.log('cloud load error',e);}
 }
-function saveAxes(){
-  localStorage.setItem('iv_axes',JSON.stringify(allAxes));
-  syncSetting('axes',allAxes);
-}
+function saveAxes(){localStorage.setItem('iv_axes',JSON.stringify(allAxes));syncSetting('axes',allAxes);}
 function saveSelectedAxes(){
   localStorage.setItem('iv_selected_axes',JSON.stringify(selectedAxes));
   syncSetting('selected_axes',selectedAxes);
   const msg=document.getElementById('axes-saved-msg');
   if(msg){msg.style.display='block';setTimeout(()=>msg.style.display='none',2500);}
 }
-function saveStageTemplates(){
-  localStorage.setItem('iv_stage_templates',JSON.stringify(stageTemplates));
-  syncSetting('stage_templates',stageTemplates);
-}
-
+function saveStageTemplates(){localStorage.setItem('iv_stage_templates',JSON.stringify(stageTemplates));syncSetting('stage_templates',stageTemplates);}
 async function syncSetting(key,data){
-  try{
-    await fetch('/api/settings',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({key,data})
-    });
-  }catch(e){console.log('settings sync error',e);}
+  try{await fetch(API_BASE+'/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,data})});}catch(e){console.log('settings sync error',e);}
 }
-
 async function loadSettings(){
   try{
     const [axesRes,selectedRes,templatesRes]=await Promise.all([
-      fetch('/api/settings?key=axes'),
-      fetch('/api/settings?key=selected_axes'),
-      fetch('/api/settings?key=stage_templates')
+      fetch(API_BASE+'/api/settings?key=axes'),
+      fetch(API_BASE+'/api/settings?key=selected_axes'),
+      fetch(API_BASE+'/api/settings?key=stage_templates')
     ]);
-    const [axesData,selectedData,templatesData]=await Promise.all([
-      axesRes.json(),selectedRes.json(),templatesRes.json()
-    ]);
+    const [axesData,selectedData,templatesData]=await Promise.all([axesRes.json(),selectedRes.json(),templatesRes.json()]);
     if(axesData){allAxes=axesData;localStorage.setItem('iv_axes',JSON.stringify(allAxes));}
     if(selectedData){selectedAxes=selectedData;localStorage.setItem('iv_selected_axes',JSON.stringify(selectedAxes));}
     if(templatesData){stageTemplates=templatesData;localStorage.setItem('iv_stage_templates',JSON.stringify(stageTemplates));}
@@ -488,12 +455,9 @@ function checkHistory(name){
   const prevStage=prevStageMap[stage];
   if(!prevStage){hint.style.display='none';prevSession=null;return;}
   const found=sessions.find(s=>s.name===name.trim()&&s.type===prevStage);
-  if(found){
-    prevSession=found;hint.style.display='block';
-    hint.textContent=`✓ ${prevStage}のデータが見つかりました。面接中に前回の回答を左側に表示します。`;
-  }else{prevSession=null;hint.style.display='none';}
+  if(found){prevSession=found;hint.style.display='block';hint.textContent=`✓ ${prevStage}のデータが見つかりました。面接中に前回の回答を左側に表示します。`;}
+  else{prevSession=null;hint.style.display='none';}
 }
-
 function onStageChange(){
   const stage=document.getElementById('setup-type').value;
   currentEditStage=stage;questions=[];
@@ -501,32 +465,23 @@ function onStageChange(){
   renderQList();checkHistory(document.getElementById('setup-name').value);
   onCategoryChange();
 }
-
 function switchStageTab(stage,el){
   currentEditStage=stage;questions=[];
   document.querySelectorAll('.stage-tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');renderQList();
 }
-
 function onCategoryChange(){
   const category=document.getElementById('setup-category').value;
   const typeSelect=document.getElementById('setup-type');
-  if(category==='新卒'){
-    typeSelect.style.borderColor='#1D9E75';
-    typeSelect.style.background='#E1F5EE';
-  } else {
-    typeSelect.style.borderColor='#185FA5';
-    typeSelect.style.background='#E6F1FB';
-  }
+  if(category==='新卒'){typeSelect.style.borderColor='#1D9E75';typeSelect.style.background='#E1F5EE';}
+  else{typeSelect.style.borderColor='#185FA5';typeSelect.style.background='#E6F1FB';}
   questions=[];renderQList();
 }
-
 function renderSetup(){
   renderAxisTags();
   currentEditStage=document.getElementById('setup-type')?.value||"1次面接";
   questions=[];renderQList();
 }
-
 function renderAxisTags(){
   document.getElementById('axis-tags').innerHTML=allAxes.map(a=>`
     <span style="display:inline-flex;align-items:center;gap:3px">
@@ -534,7 +489,6 @@ function renderAxisTags(){
       ${AXES.includes(a)?'':`<span onclick="deleteAxis('${a}')" style="font-size:.7rem;color:var(--text3);cursor:pointer;padding:0 2px">✕</span>`}
     </span>`).join('');
 }
-
 function toggleAxis(a,el){
   if(selectedAxes.includes(a))selectedAxes=selectedAxes.filter(x=>x!==a);else selectedAxes.push(a);
   el.classList.toggle('on');
@@ -549,13 +503,11 @@ function deleteAxis(a){
   allAxes=allAxes.filter(x=>x!==a);selectedAxes=selectedAxes.filter(x=>x!==a);
   saveAxes();renderAxisTags();renderQList();
 }
-
-function getStageQuestions(cat, stage){
+function getStageQuestions(cat,stage){
   const c=cat||(document.getElementById('setup-category')?.value||'中途');
   const templates=stageTemplates[c]||DEFAULT_TEMPLATES[c]||DEFAULT_TEMPLATES['中途'];
   return (templates[stage]||templates['1次面接']||[]).map(q=>({...q}));
 }
-
 function renderQList(){
   if(!questions.length)questions=getStageQuestions(null,currentEditStage);
   document.getElementById('q-list').innerHTML=questions.map((q,i)=>`
@@ -572,7 +524,6 @@ function renderQList(){
     </div>`).join('');
   initDrag();
 }
-
 let dragSrcIdx=null;
 function initDrag(){
   document.querySelectorAll('.q-row').forEach(row=>{
@@ -584,7 +535,6 @@ function dragStart(e,idx){dragSrcIdx=idx;e.dataTransfer.effectAllowed='move';set
 function dragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';}
 function dragDrop(e,toIdx){e.preventDefault();if(dragSrcIdx===null||dragSrcIdx===toIdx)return;const moved=questions.splice(dragSrcIdx,1)[0];questions.splice(toIdx,0,moved);renderQList();}
 function dragEnd(e){e.target.closest('.q-row').style.opacity='1';document.querySelectorAll('.q-row').forEach(r=>r.style.borderColor='transparent');dragSrcIdx=null;}
-
 function saveTemplateSet(){
   const validQs=questions.filter(q=>q.text.trim());
   if(!validQs.length){alert('質問を入力してください');return;}
@@ -595,7 +545,6 @@ function saveTemplateSet(){
   if(msg){msg.style.display='block';setTimeout(()=>msg.style.display='none',2000);}
 }
 function addQuestion(){questions.push({axis:selectedAxes[0]||allAxes[0],text:''});renderQList();}
-
 function startInterview(){
   const name=document.getElementById('setup-name').value.trim();
   const pos=document.getElementById('setup-pos').value.trim();
@@ -615,7 +564,6 @@ function startInterview(){
   document.getElementById('iv-pos').textContent=(pos||'')+' | '+(category?category+' ':'')+type+' | '+dateStr+interviewerLabel;
   renderQuestion();show('interview');
 }
-
 function renderQuestion(){
   const q=currentSession.questions[currentQ];
   const a=answers[currentQ];
@@ -625,14 +573,12 @@ function renderQuestion(){
   document.getElementById('iv-dots').innerHTML=currentSession.questions.map((_,i)=>{
     let c='step-dot';if(i<currentQ)c+=' done';else if(i===currentQ)c+=' active';return`<div class="${c}"></div>`;
   }).join('');
-
   let prevAnswer=null,prevQ=null;
   if(prevSession){
     const idx=prevSession.questions?.findIndex(pq=>pq.axis===q.axis);
     if(idx!==-1&&idx!==undefined){prevAnswer=prevSession.answers?.[idx];prevQ=prevSession.questions?.[idx];}
     if(!prevAnswer){prevAnswer=prevSession.answers?.[currentQ];prevQ=prevSession.questions?.[currentQ];}
   }
-
   const prevHTML=prevAnswer?`
     <div class="iv-prev">
       <div class="iv-prev-label">${prevSession.type} の回答</div>
@@ -640,31 +586,22 @@ function renderQuestion(){
       <div class="iv-prev-a">${prevAnswer.answer||'（回答なし）'}</div>
       ${prevAnswer.memo?`<div class="iv-prev-memo" style="margin-top:.5rem"><div style="font-size:.7rem;color:var(--amber-text);font-weight:600;margin-bottom:.2rem">前回の面接官メモ</div><div style="font-size:.85rem;color:var(--text2);font-style:normal">${prevAnswer.memo}</div></div>`:''}
     </div>`:'';
-
-  const stepLabel = currentQ===0?'まず候補者の回答をメモしてください':
-                    currentQ===total-1?'最後の質問です。回答後に評価へ進みます':
-                    `${currentQ+1}問目です。回答後に深掘りするか次へ進んでください`;
-
+  const stepLabel=currentQ===0?'まず候補者の回答をメモしてください':currentQ===total-1?'最後の質問です。回答後に評価へ進みます':`${currentQ+1}問目です。回答後に深掘りするか次へ進んでください`;
   const currentHTML=`
     <div class="iv-current">
-      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:.5rem .75rem;margin-bottom:.875rem;font-size:.8rem;color:var(--text2)">
-        💡 ${stepLabel}
-      </div>
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:.5rem .75rem;margin-bottom:.875rem;font-size:.8rem;color:var(--text2)">💡 ${stepLabel}</div>
       <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
         <span class="meta">質問 ${currentQ+1}</span>
         <span class="badge blue">${q.axis}</span>
         ${prevSession?`<span class="badge purple">${currentSession.type}</span>`:''}
       </div>
       <div style="font-size:1rem;font-weight:600;line-height:1.6;margin-bottom:.875rem">${q.text}</div>
-
       <div style="font-size:.75rem;color:var(--text3);margin-bottom:.3rem">回答メモ</div>
       <textarea id="ans-text" placeholder="候補者の回答をここに入力..." style="min-height:100px">${a.answer}</textarea>
-
       <div class="memo-col" style="margin-top:.5rem">
         <div class="memo-col-label">面接官メモ（任意）</div>
         <textarea id="memo-text" placeholder="気になった点など..." style="min-height:56px;background:transparent;border-color:#EF9F27">${a.memo}</textarea>
       </div>
-
       <div id="ai-followup-area" style="margin-top:.75rem">
         ${a.followupQ?`
           <div style="background:var(--purple-bg);border:1px solid #AFA9EC;border-radius:var(--radius-sm);padding:.875rem;margin-bottom:.5rem">
@@ -672,29 +609,20 @@ function renderQuestion(){
             <div style="font-size:.875rem;font-weight:600;color:var(--text);margin-bottom:.5rem">${a.followupQ}</div>
             <div style="font-size:.75rem;color:var(--text3);margin-bottom:.3rem">深掘りへの回答</div>
             <textarea id="fq-ans" placeholder="回答を入力...">${a.followupA}</textarea>
-          </div>`:''
-        }
+          </div>`:''}
         <button class="btn" id="ai-fq-btn" onclick="generateAiFollowup()" style="width:100%;border-color:var(--purple);color:var(--purple)" ${!a.answer.trim()?'disabled':''}>
           ✦ AIで深掘り質問を生成
         </button>
       </div>
     </div>`;
-
   document.getElementById('iv-content').innerHTML=`
     ${prevAnswer?`<div class="iv-layout">${prevHTML}${currentHTML}</div>`:currentHTML}
     <div class="btn-row" style="margin-top:.75rem">
       ${currentQ>0?`<button class="btn ghost" onclick="prevQ()">← 前へ</button>`:''}
       <button class="btn primary" onclick="nextQ()">${currentQ<currentSession.questions.length-1?'次の質問 →':'評価へ進む →'}</button>
     </div>`;
-
   const ta=document.getElementById('ans-text');
-  if(ta){
-    ta.addEventListener('input',()=>{
-      answers[currentQ].answer=ta.value;
-      const btn=document.getElementById('ai-fq-btn');
-      if(btn)btn.disabled=!ta.value.trim();
-    });
-  }
+  if(ta){ta.addEventListener('input',()=>{answers[currentQ].answer=ta.value;const btn=document.getElementById('ai-fq-btn');if(btn)btn.disabled=!ta.value.trim();});}
   const mt=document.getElementById('memo-text');if(mt)mt.addEventListener('input',()=>answers[currentQ].memo=mt.value);
   const fqAns=document.getElementById('fq-ans');if(fqAns)fqAns.addEventListener('input',()=>answers[currentQ].followupA=fqAns.value);
 }
@@ -705,11 +633,9 @@ async function generateAiFollowup(){
   const ta=document.getElementById('ans-text');
   if(ta)answers[currentQ].answer=ta.value;
   if(!answers[currentQ].answer.trim())return;
-
   btn.disabled=true;btn.textContent='生成中...';
-
   try{
-    const res=await fetch('/API/analyze',{
+    const res=await fetch(API_BASE+'/API/analyze',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
@@ -726,10 +652,7 @@ async function generateAiFollowup(){
     const fq=data.followupQuestion||data;
     answers[currentQ].followupQ=typeof fq==='string'?fq:JSON.stringify(fq);
     renderQuestion();
-    setTimeout(()=>{
-      const fqBtn=document.getElementById('ai-fq-btn');
-      if(fqBtn){fqBtn.disabled=false;fqBtn.textContent='✦ AIで再生成';}
-    },100);
+    setTimeout(()=>{const fqBtn=document.getElementById('ai-fq-btn');if(fqBtn){fqBtn.disabled=false;fqBtn.textContent='✦ AIで再生成';}},100);
   }catch(e){
     btn.disabled=false;btn.textContent='✦ AIで深掘り質問を生成';
     const errDiv=document.createElement('div');
@@ -740,38 +663,6 @@ async function generateAiFollowup(){
   }
 }
 
-function pickFollowup(val){
-  if(!val)return;answers[currentQ].followupQ=val;
-  const oq=document.getElementById('own-q');if(oq){oq.value='';answers[currentQ].ownQ='';}
-  renderQuestion();setTimeout(()=>{const s=document.getElementById('fq-select');if(s)s.value=val;},10);
-}
-function showFreeQInput(){
-  const area=document.getElementById('free-q-area');
-  if(!area||area.querySelector('.free-q-input-row'))return;
-  const row=document.createElement('div');row.className='free-q-input-row';
-  row.style.cssText='display:flex;gap:.5rem;align-items:flex-start;margin-bottom:.5rem';
-  row.innerHTML=`<div style="flex:1"><input type="text" id="free-q-text" placeholder="質問を入力..." style="margin-bottom:.3rem"><textarea id="free-q-ans" placeholder="回答メモ..." style="min-height:52px"></textarea></div><button class="btn teal" onclick="addFreeQ()" style="padding:.5rem .875rem;flex-shrink:0">追加</button>`;
-  area.appendChild(row);document.getElementById('free-q-text').focus();
-}
-function addFreeQ(){
-  const qEl=document.getElementById('free-q-text');const aEl=document.getElementById('free-q-ans');
-  if(!qEl||!qEl.value.trim())return;
-  if(!answers[currentQ].freeQs)answers[currentQ].freeQs=[];
-  answers[currentQ].freeQs.push({q:qEl.value.trim(),a:aEl?aEl.value:''});
-  renderFreeQs();document.querySelector('.free-q-input-row')?.remove();
-}
-function removeFreeQ(idx){answers[currentQ].freeQs.splice(idx,1);renderFreeQs();}
-function renderFreeQs(){
-  const area=document.getElementById('free-q-area');if(!area)return;
-  area.querySelectorAll('.free-q-entry').forEach(e=>e.remove());
-  (answers[currentQ].freeQs||[]).forEach((item,idx)=>{
-    const div=document.createElement('div');div.className='free-q-entry';
-    div.style.cssText='border:1px solid var(--border);border-radius:var(--radius-sm);padding:.75rem;margin-bottom:.5rem';
-    div.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem"><span style="font-size:.8rem;font-weight:600">${item.q}</span><button class="btn ghost" onclick="removeFreeQ(${idx})" style="padding:.2rem .5rem;font-size:.75rem">✕</button></div><textarea placeholder="回答メモ..." style="min-height:52px" oninput="answers[currentQ].freeQs[${idx}].a=this.value">${item.a}</textarea>`;
-    area.insertBefore(div,area.firstChild);
-  });
-}
-function skipFollowup(){answers[currentQ].skipped=true;renderQuestion();}
 function prevQ(){if(currentQ>0){currentQ--;renderQuestion();}}
 function nextQ(){
   const ta=document.getElementById('ans-text');if(ta)answers[currentQ].answer=ta.value;
@@ -782,20 +673,15 @@ function nextQ(){
   else renderAxisRating();
 }
 
-let aiEvalResult = null;
-
+let aiEvalResult=null;
 function renderAxisRating(){
   const axes=currentSession.axes.length?currentSession.axes:[...new Set(currentSession.questions.map(q=>q.axis))];
   document.getElementById('iv-content').innerHTML=`
     <div class="card">
       <div style="font-size:1rem;font-weight:600;margin-bottom:.25rem">評価してください</div>
       <div class="meta" style="margin-bottom:1rem">AIの分析と面接官の評価を両方記録します</div>
-
-      <button class="btn" id="ai-eval-btn" onclick="runAiEval()" style="width:100%;margin-bottom:1.25rem;border-color:var(--purple);color:var(--purple)">
-        ✦ AIで回答を分析する
-      </button>
+      <button class="btn" id="ai-eval-btn" onclick="runAiEval()" style="width:100%;margin-bottom:1.25rem;border-color:var(--purple);color:var(--purple)">✦ AIで回答を分析する</button>
       <div id="ai-eval-area"></div>
-
       <div style="border-top:1px solid var(--border);padding-top:1.25rem;margin-top:.5rem">
         <div style="font-size:.875rem;font-weight:600;margin-bottom:1rem">面接官の評価（1〜5）</div>
         ${axes.map(axis=>`
@@ -824,20 +710,15 @@ async function runAiEval(){
   btn.disabled=true;btn.textContent='分析中...';
   area.innerHTML=`<div style="text-align:center;padding:1rem;color:var(--text3);font-size:.875rem">AIが回答内容を分析しています...</div>`;
   try{
-    const res=await fetch('/API/analyze',{
+    const res=await fetch(API_BASE+'/API/analyze',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        questions:currentSession.questions,
-        answers:answers,
-        axes:currentSession.axes
-      })
+      body:JSON.stringify({questions:currentSession.questions,answers:answers,axes:currentSession.axes})
     });
     const data=await res.json();
     if(data.error)throw new Error(data.error);
     aiEvalResult=data;
     renderAiResult(data);
-    // AI評価を星に反映（参考として）
     if(data.axisScores){
       Object.entries(data.axisScores).forEach(([axis,val])=>{
         if(!axisRatingScores[axis]){
@@ -857,13 +738,10 @@ function renderAiResult(data){
   const axisRows=data.axisScores?Object.entries(data.axisScores).map(([axis,val])=>`
     <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
       <div style="font-size:.8rem;color:var(--text2);width:100px;flex-shrink:0">${axis}</div>
-      <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-        <div style="height:100%;width:${val.score*20}%;background:var(--purple);border-radius:3px"></div>
-      </div>
+      <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:${val.score*20}%;background:var(--purple);border-radius:3px"></div></div>
       <div style="font-size:.8rem;font-weight:600;width:20px;color:var(--purple)">${val.score}</div>
       <div style="font-size:.75rem;color:var(--text3);flex:1">${val.reason||''}</div>
     </div>`).join(''):'';
-
   area.innerHTML=`
     <div style="background:var(--purple-bg);border:1px solid #AFA9EC;border-radius:var(--radius);padding:1rem;margin-bottom:1.25rem">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem">
@@ -871,19 +749,12 @@ function renderAiResult(data){
         <div style="font-size:1.25rem;font-weight:700;color:var(--purple-text)">${data.totalScore}<span style="font-size:.75rem;font-weight:400">/100</span></div>
       </div>
       ${axisRows}
-      ${data.strengths?.length?`
-        <div style="margin-top:.875rem;padding:.6rem .75rem;background:var(--teal-bg);border-radius:var(--radius-sm)">
-          <div style="font-size:.7rem;color:var(--teal-text);font-weight:600;margin-bottom:.3rem">強み</div>
-          ${data.strengths.map(s=>`<div style="font-size:.8rem;color:var(--text2)">・${s}</div>`).join('')}
-        </div>`:''}
-      ${data.concerns?.length?`
-        <div style="margin-top:.5rem;padding:.6rem .75rem;background:var(--amber-bg);border-radius:var(--radius-sm)">
-          <div style="font-size:.7rem;color:var(--amber-text);font-weight:600;margin-bottom:.3rem">懸念点</div>
-          ${data.concerns.map(c=>`<div style="font-size:.8rem;color:var(--text2)">・${c}</div>`).join('')}
-        </div>`:''}
+      ${data.strengths?.length?`<div style="margin-top:.875rem;padding:.6rem .75rem;background:var(--teal-bg);border-radius:var(--radius-sm)"><div style="font-size:.7rem;color:var(--teal-text);font-weight:600;margin-bottom:.3rem">強み</div>${data.strengths.map(s=>`<div style="font-size:.8rem;color:var(--text2)">・${s}</div>`).join('')}</div>`:''}
+      ${data.concerns?.length?`<div style="margin-top:.5rem;padding:.6rem .75rem;background:var(--amber-bg);border-radius:var(--radius-sm)"><div style="font-size:.7rem;color:var(--amber-text);font-weight:600;margin-bottom:.3rem">懸念点</div>${data.concerns.map(c=>`<div style="font-size:.8rem;color:var(--text2)">・${c}</div>`).join('')}</div>`:''}
       ${data.summary?`<div style="margin-top:.75rem;font-size:.8rem;color:var(--purple-text);line-height:1.6">${data.summary}</div>`:''}
     </div>`;
 }
+
 function setAxisScore(axis,n){
   axisRatingScores[axis]=n;
   document.querySelectorAll(`#stars-${CSS.escape(axis)} .star`).forEach((s,i)=>s.classList.toggle('active',i<n));
@@ -913,18 +784,14 @@ async function renderManager(){
     <div class="stat"><div class="stat-val">${pending}</div><div class="stat-label">判定待ち</div></div>`;
   const list=document.getElementById('mgr-list');
   if(!sessions.length){list.innerHTML='<div class="empty">まだ面接データがありません</div>';return;}
-
   const keyword=(document.getElementById('mgr-search')?.value||'').trim().toLowerCase();
   const filter=document.getElementById('mgr-filter')?.value||'';
-
   const filtered=sessions.map((s,i)=>({s,i})).filter(({s})=>{
     const matchName=!keyword||s.name.toLowerCase().includes(keyword);
     const matchFilter=!filter||(filter==='pending'&&s.status==='pending')||(filter==='pass'&&s.verdict==='pass')||(filter==='fail'&&s.verdict==='fail')||(filter==='中途'&&s.category==='中途')||(filter==='新卒'&&s.category==='新卒');
     return matchName&&matchFilter;
   });
-
   if(!filtered.length){list.innerHTML='<div class="empty">該当する候補者がいません</div>';return;}
-
   list.innerHTML=filtered.map(({s,i})=>`
     <div class="list-item" style="position:relative">
       <div onclick="openDetail(${i})" style="display:flex;align-items:center;gap:.75rem;flex:1;cursor:pointer">
@@ -942,12 +809,10 @@ async function renderManager(){
 function deleteSession(idx){
   const s=sessions[idx];
   if(!confirm(`「${s.name}（${s.type}）」のデータを削除しますか？この操作は元に戻せません。`))return;
-  deleteFromCloud(s.id);
-  sessions.splice(idx,1);
-  saveSessions();
-  renderManager();
+  deleteFromCloud(s.id);sessions.splice(idx,1);saveSessions();renderManager();
 }
 
+let currentDetailIdx=null;
 function openDetail(idx){
   currentDetailIdx=idx;
   const s=sessions[idx];
@@ -1008,6 +873,7 @@ function openDetail(idx){
     </div>`;
   show('detail');
 }
+
 function printDetail(){
   const s=sessions[currentDetailIdx];
   if(!s){alert('データがありません');return;}
@@ -1018,7 +884,6 @@ function printDetail(){
       <div style="flex:1;height:6px;background:#eee;border-radius:3px;overflow:hidden"><div style="height:100%;width:${v}%;background:#1D9E75;border-radius:3px"></div></div>
       <div style="width:30px;font-size:11px;text-align:right">${v}</div>
     </div>`).join('');
-
   const aiRows=s.aiEval?.axisScores?Object.entries(s.aiEval.axisScores).map(([k,v])=>`
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
       <div style="width:100px;font-size:11px">${k}</div>
@@ -1026,7 +891,6 @@ function printDetail(){
       <div style="width:30px;font-size:11px;text-align:right">${v.score}</div>
       <div style="font-size:10px;color:#666;flex:1">${v.reason||''}</div>
     </div>`).join(''):'';
-
   const qaRows=(s.answers||[]).map((a,i)=>`
     <div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #eee;page-break-inside:avoid">
       <div style="display:flex;gap:6px;margin-bottom:4px">
@@ -1041,31 +905,22 @@ function printDetail(){
       ${(a.followupQ||a.ownQ)?`<div style="margin-top:5px;padding:5px 8px;background:#FAEEDA;border-radius:4px"><div style="font-size:9px;color:#633806;font-weight:600;margin-bottom:2px">深掘り</div><div style="font-size:11px;font-weight:600">${a.followupQ||a.ownQ}</div><div style="font-size:11px;color:#555">${a.followupA||'（回答なし）'}</div></div>`:''}
       ${(a.freeQs||[]).map(fq=>`<div style="margin-top:5px;padding:5px 8px;background:#E1F5EE;border-radius:4px"><div style="font-size:9px;color:#0F6E56;font-weight:600;margin-bottom:2px">自由質問</div><div style="font-size:11px;font-weight:600">${fq.q}</div><div style="font-size:11px;color:#555">${fq.a||'（回答なし）'}</div></div>`).join('')}
     </div>`).join('');
-
   const verdictColor=s.verdict==='pass'?'#0F6E56':s.verdict==='fail'?'#A32D2D':'#888';
   const verdictText=s.verdict==='pass'?'合格':s.verdict==='fail'?'不合格':'未判定';
-
   const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
   <title>面接記録_${s.name}_${s.type}</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;font-size:11px;color:#111;padding:16px 20px;line-height:1.5}
-    @media print{body{padding:8px 12px}@page{margin:10mm}}
-  </style></head><body>
-
+  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;font-size:11px;color:#111;padding:16px 20px;line-height:1.5}@media print{body{padding:8px 12px}@page{margin:10mm}}</style>
+  </head><body>
   <div style="border-bottom:2px solid #1D9E75;padding-bottom:8px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-end">
     <div><div style="font-size:16px;font-weight:700;color:#1D9E75">面接記録</div><div style="font-size:11px;color:#555">${s.type}</div></div>
     <div style="font-size:11px;color:#555">${date}　面接官: ${s.interviewer||'―'}</div>
   </div>
-
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;padding:8px 10px;background:#f8f7f4;border-radius:6px">
     <div><div style="font-size:9px;color:#888">候補者名</div><div style="font-size:13px;font-weight:700">${s.name}</div></div>
     <div><div style="font-size:9px;color:#888">応募ポジション</div><div style="font-size:12px;font-weight:600">${s.pos||'―'}</div></div>
     <div><div style="font-size:9px;color:#888">合否</div><div style="font-size:14px;font-weight:700;color:${verdictColor}">${verdictText}</div></div>
   </div>
-
   ${s.comment?`<div style="margin-bottom:12px;padding:8px 10px;background:#f8f7f4;border-radius:6px"><div style="font-size:9px;color:#888;margin-bottom:3px">担当者コメント</div><div style="font-size:11px;line-height:1.6">${s.comment}</div></div>`:''}
-
   <div style="display:grid;grid-template-columns:${s.aiEval?'1fr 1fr':'1fr'};gap:12px;margin-bottom:12px">
     <div>
       <div style="font-size:10px;font-weight:700;color:#1D9E75;border-bottom:1px solid #1D9E75;padding-bottom:3px;margin-bottom:8px">面接官の評価</div>
@@ -1073,8 +928,7 @@ function printDetail(){
       ${axisRows}
       ${s.overallMemo?`<div style="margin-top:6px;padding:5px 8px;background:#FAEEDA;border-radius:4px"><div style="font-size:9px;color:#633806;margin-bottom:2px">総評メモ</div><div style="font-size:11px">${s.overallMemo}</div></div>`:''}
     </div>
-    ${s.aiEval?`
-    <div>
+    ${s.aiEval?`<div>
       <div style="font-size:10px;font-weight:700;color:#534AB7;border-bottom:1px solid #534AB7;padding-bottom:3px;margin-bottom:8px">AI分析結果</div>
       <div style="margin-bottom:4px;font-size:10px;font-weight:600">総合: ${s.aiEval.totalScore}/100</div>
       ${aiRows}
@@ -1083,21 +937,16 @@ function printDetail(){
       ${s.aiEval.summary?`<div style="margin-top:4px;font-size:10px;color:#3C3489;line-height:1.5">${s.aiEval.summary}</div>`:''}
     </div>`:''}
   </div>
-
   <div style="font-size:10px;font-weight:700;color:#1D9E75;border-bottom:1px solid #1D9E75;padding-bottom:3px;margin-bottom:8px">面接ログ</div>
   ${qaRows}
-
   <div style="margin-top:12px;padding-top:8px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:9px;color:#888">
     <span>面接合否ボット</span><span>出力日: ${new Date().toLocaleDateString('ja-JP')}</span>
   </div>
   </body></html>`;
-
   const w=window.open('','_blank','width=900,height=1100');
   w.document.write(html);w.document.close();
   setTimeout(()=>w.print(),400);
 }
-
-let currentDetailIdx=null;
 
 function decide(idx,result){
   const comment=document.getElementById('verdict-comment')?.value||'';
